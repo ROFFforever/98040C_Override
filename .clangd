@@ -1,0 +1,10 @@
+CompileFlags:
+  Add: [
+    "-Iinclude",
+    "-Iinclude/Subsystems",
+    "-Iinclude/CommandScheduler",
+    "-Iinclude/pros",
+    "-Isrc",
+    "--target=arm-none-eabi",
+    "-mthumb"
+  ]
