@@ -10,7 +10,8 @@ Pose Pose::operator+(const Pose& other) const {
 Pose Pose::operator-(const Pose& other) const {
     return Pose(x - other.x, y - other.y, theta);
 }
-
+Pose::Pose() : x(0), y(0), theta(0){
+}
 float Pose::distance(const Pose& other) const {
     return std::hypot(x - other.x, y - other.y);
 }

@@ -16,6 +16,14 @@ public:
     Telemetry() = default;
 
     void send(const std::string& data);
+
+    /**
+     * Quick one-off debug print - wraps `message` as {"debug": "..."} and adds
+     * the trailing newline for you, so it shows up in the python listener
+     * without you hand-writing JSON each time. Use send() instead when you
+     * want your own JSON shape (e.g. multiple named fields).
+     */
+    void debug(const std::string& message);
 };
 
 inline Telemetry TELEMETRY;

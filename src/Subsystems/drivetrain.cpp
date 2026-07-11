@@ -2,12 +2,30 @@
 #include <cmath>
 #include "Telemetry/telemetry.h"
 
-
-drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheelRPM) {
+double odom_wheel::get_dist_delta(){
+    if(odom_sensor != nullptr){ 
+        prev_val = current_val;
+        current_val = odom_sensor->get_position()* wheel_diameter * M_PI / 36000;
+        return( current_val- prev_val);
+    }
+    return Units::ERROR; //odom_sensor not working
+}
+drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM) {
     this->leftMotors = leftMotors;
     this->rightMotors = rightMotors;
     this->imu = imu;
+    this->wheel_diamter = wheel_diameter;
     this->wheelRPM = wheelRPM;
+}
+
+drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom) {
+    this->leftMotors = leftMotors;
+    this->rightMotors = rightMotors;
+    this->imu = imu;
+    this->wheel_diamter = wheel_diameter;
+    this->wheelRPM = wheelRPM;
+    this->vert_odom = vert_odom;
+    this->horiz_odom = horiz_odom;
 }
 
 double drivetrain::getLeftDistance() {
@@ -29,19 +47,9 @@ double drivetrain::getRightDistance() {
 }
 
 void drivetrain::periodic(){
-    double leftDist = getLeftDistance();
-    double rightDist = getRightDistance();
-
-    double deltaLeft = leftDist - prevLeftDist;    // left dt: how far the left side rolled since last tick
-    double deltaRight = rightDist - prevRightDist; // right dt: how far the right side rolled since last tick
-
-
-//     TELEMETRY.send("{\"leftDist\": " + std::to_string(leftDist) + ", \"rightDist\": " + std::to_string(
-// rightDist) +
-//                     "}\n");
-
-    prevLeftDist = leftDist;
-    prevRightDist = rightDist;
+    if (vert_odom != nullptr) {
+        TELEMETRY.debug(std::to_string(vert_odom->odom_sensor->get_position())); //just wanna see how this works
+    }
 }
 
 void drivetrain::setPctLeft(int pct){
@@ -51,6 +59,15 @@ void drivetrain::setPctRight(int pct){
     rightMotors->move(pct);
 }
 
+//assume we have at least one tracking device
+void updatePos(){
+
+    //find change in positional values
+    double delta_x = 0;
+    double delta_y = 0;
+    double delta_theta = 0;
+
+}
 
 void drivetrain::arcade(int throttle, int turn){
     int leftPct = throttle + turn;

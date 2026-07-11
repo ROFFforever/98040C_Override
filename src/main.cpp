@@ -14,10 +14,17 @@ pros::Imu imu(7);                  // port 7
 
 
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
-drivetrain chassis(&leftMotors, &rightMotors, &imu, 450); // 450 = wheel's actual output rpm after gearing
+pros::Rotation vertRotation(6);            // plain global, same as leftMotors/rightMotors/imu above -
+                                            // NOT `new`'d, since heap-allocating a device object at
+                                            // global scope runs before PROS's hardware layer is ready
+                                            // and was crashing with a DATA ABORT
+odom_wheel vert(&vertRotation, 0, 1);
+odom_wheel horiz(nullptr, 0, 0);
+drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 450, &vert, &horiz); // 450 = wheel's actual output rpm after gearing
 intake intake_motors({&intake_motor_1}, false);
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
 IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
+
 /**
  * Runs initialization code. This occurs as soon as the program is started.
  *

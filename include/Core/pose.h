@@ -16,6 +16,8 @@ public:
 
     Pose(float x, float y, float theta = 0);
 
+    Pose();
+
     // adds two poses component-wise; heading is kept from this pose, not other
     Pose operator+(const Pose& other) const;
     // subtracts two poses component-wise; heading is kept from this pose, not other
