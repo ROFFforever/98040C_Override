@@ -4,8 +4,9 @@
 #include "pros/imu.hpp"
 #include "pros/motor_group.hpp"
 #include "Units.h"
+#include "util/timer.h"
 #include "pros/rotation.hpp"
-#include "Core/pose.h"
+#include "util/pose.h"
 
 
 class odom_wheel{
@@ -36,8 +37,13 @@ class drivetrain : public Subsystem{
         double prevLeftDist = 0;
         double prevRightDist = 0;
 
+        double dummy_var;
+  
+
 
     public:
+    Timer* ticks;
+
     //simple drivetrain without odom tracking(manually track with drive)
     drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM);
     //Drivetrain with basic odom, if don't have a dead wheel, set nullptr
@@ -45,6 +51,11 @@ class drivetrain : public Subsystem{
     
     void periodic() override; //put localization in here
     //-127/127
+
+    // Blocks (~2s) until the IMU finishes its startup self-calibration.
+    // Call this once from initialize(), before anything reads imu->get_heading() -
+    // during calibration it returns garbage, not a real heading.
+    void calibrateIMU();
     
     //odom based updating
     void update_pos();

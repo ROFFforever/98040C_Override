@@ -10,7 +10,7 @@
 pros::MotorGroup leftMotors({13, -12, -11});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-18, 19, 20});
 pros::Motor intake_motor_1(1);
-pros::Imu imu(7);                  // port 7
+pros::Imu imu(2);                  // port 7
 
 
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
@@ -34,6 +34,11 @@ IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER
 void initialize() {
 	pros::lcd::initialize();
 	pros::lcd::set_text(1, "Hello PROS User!");
+
+	// Blocks ~2s while the IMU's gyro/accel finish their startup calibration,
+	// so nothing downstream (odom, telemetry) reads garbage headings before
+	// the sensor is actually ready.
+	chassis.calibrateIMU();
 
 	// From now on, whenever nothing else has claimed myDrive, the scheduler
 	// runs arcadeDrive on it - this is what makes teleop driving "just work"
@@ -87,12 +92,9 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
+	Timer time(10);
+	chassis.ticks = &time;
 	while(true){
-		
-		// CommandScheduler::run() replaces the manual calls above: it calls
-		// periodic() on every registered Subsystem (myDrive included), and
-		// runs execute() on whichever Command currently owns each Subsystem
-		// (arcadeDrive, until something else schedules over it).
 		CommandScheduler::run();
 		pros::delay(16); //60hz
 	}

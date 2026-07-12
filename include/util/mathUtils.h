@@ -13,14 +13,27 @@ constexpr float degToRad(float deg) { return deg * M_PI / 180.0f; }
  * [0, 360). Sensor headings (e.g. from the IMU) and target headings need to
  * be in the same range before you can compare them meaningfully.
  */
-float sanitizeAngle(float angle, bool radians = true);
+float sanitizeAngle(float angle, bool radians = false);
 
 /**
- * Shortest signed angular distance to turn from `position` to reach `target`,
- * handling wraparound correctly (e.g. going from 350 degrees to 10 degrees
- * is +20, not -340).
+ * Shortest signed difference between two angles, returned as `x - y` wrapped
+ * into [-pi, pi] radians. Ported from Echo's `angleDifference`.
+ *
+ * This is the workhorse for odometry: to find how far the robot's heading
+ * turned during one tick you take angleDifference(currentHeading,
+ * previousHeading), and it stays correct even when the heading rolls across
+ * the 0 / 2pi seam (e.g. 350 deg -> 10 deg reads as +20, not -340).
+ *
+ * Takes radians. The IMU itself reports degrees, so convert with degToRad()
+ * once, right where you read the sensor (see drivetrain::update_pos()) -
+ * that way degrees never leak into the rest of the odometry math.
+ *
+ * Note: this is the SAME math as angleError() above. angleError is phrased for
+ * control loops (how far is `position` from `target`) and can flip between
+ * radians/degrees via its `radians` flag; angleDifference is the general "how
+ * far apart are these two headings" phrasing Echo uses in odom, radians-only.
  */
-float angleError(float target, float position, bool radians = true);
+float angleDifference(float current, float past);
 
 /**
  * Sign of a value: -1 if negative, 1 otherwise (0 counts as positive, by
