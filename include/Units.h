@@ -7,6 +7,7 @@ class Units {
 public:
     static constexpr double WHEEL_325 = 3.25;
     static constexpr int ERROR = -1;
+    static constexpr int MISSING_SENSORS = -2;
 
     // every drive motor cartridge on this robot is blue (600rpm internal speed)
     static constexpr double CARTRIDGE_RPM = 600.0;

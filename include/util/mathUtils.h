@@ -24,9 +24,10 @@ float sanitizeAngle(float angle, bool radians = false);
  * previousHeading), and it stays correct even when the heading rolls across
  * the 0 / 2pi seam (e.g. 350 deg -> 10 deg reads as +20, not -340).
  *
- * Takes radians. The IMU itself reports degrees, so convert with degToRad()
- * once, right where you read the sensor (see drivetrain::update_pos()) -
- * that way degrees never leak into the rest of the odometry math.
+ * Takes radians. The IMU itself reports clockwise-positive degrees, so flip
+ * the sign and convert once, right where you read the sensor (see
+ * drivetrain::getAngle()) - that way neither degrees nor the backwards sign
+ * convention ever leak into the rest of the odometry math.
  *
  * Note: this is the SAME math as angleError() above. angleError is phrased for
  * control loops (how far is `position` from `target`) and can flip between

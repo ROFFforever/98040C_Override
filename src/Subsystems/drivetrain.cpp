@@ -64,8 +64,15 @@ void drivetrain::calibrateIMU(){
     }
 }
 
+double drivetrain::getAngle(){
+    //flip angle to match mathematical format
+    return degToRad(-imu->get_rotation());
+}
+
 void drivetrain::periodic(){
-    update_pos();
+    if(!update_pos()){
+        TELEMETRY.debug("MISSING SENSOR");
+    }
 }
 
 void drivetrain::setPctLeft(int pct){
@@ -76,26 +83,28 @@ void drivetrain::setPctRight(int pct){
 }
 
 //assume we have at least one tracking device
-void drivetrain::update_pos(){
+bool drivetrain::update_pos(){
     //use standard method from Pilons.
     //Get delta_x and delta_y. 
     //Use delta_x and y to create a chord(assume robot drives in chords) and find the chord_x and chord_y
     //rotate the chord x and y onto the global frame(rotational matrix)
-    //one note: since global y alligns with theta = 0, inputs of sin and cos for rotational matrix are swapped
+    //standard mathematical model for angles(positive x = 0 degrees; Increasing angles = counter clockwise)
 
     //If missing any dead wheel don't track(probably in the middle of rebuilding or something)
     int8_t missing_sensors = 0;
 
-    //raw theta in rads so that further calculations are eaiser(don't have to call degToRad)
-    double rawTheta = degToRad(imu->get_heading());
+    //raw theta in rads, already flipped to counterclockwise-positive by getAngle()
+    double rawTheta = getAngle();
 
     //find change in positional values
-    double delta_x = horiz_odom->odom_sensor != nullptr ? horiz_odom->get_dist_delta() : missing_sensors++;
-    double delta_y = vert_odom->odom_sensor != nullptr ? vert_odom->get_dist_delta() : missing_sensors++;
+    //vert wheel rolls along the drive direction -> robot-forward = local +x
+    //horiz wheel rolls sideways -> robot-left = local +y
+    double delta_forward = vert_odom->odom_sensor != nullptr ? vert_odom->get_dist_delta() : missing_sensors++;
+    double delta_left = horiz_odom->odom_sensor != nullptr ? horiz_odom->get_dist_delta() : missing_sensors++;
     double delta_theta = angleDifference(rawTheta, pos.theta);
 
     //don't track cuz we don't have the sensors to do so
-    if(missing_sensors > 1) return;
+    if(missing_sensors > 1) return false;
     
     //update current robot heading
     pos.theta = rawTheta;
@@ -105,20 +114,23 @@ void drivetrain::update_pos(){
 
     //if angle hasn't changed then must be linear
     if(delta_theta == 0){
-        local_x = delta_x; 
-        local_y = delta_y; 
+        local_x = delta_forward;
+        local_y = delta_left;
     }else{ //if angle has changed do chord math
-    local_x = 2 * std::sin(delta_theta / 2) * (delta_x / delta_theta + horiz_odom->offset);
-    local_y = 2 * std::sin(delta_theta / 2) * (delta_y / delta_theta + vert_odom->offset);
+    local_x = 2 * std::sin(delta_theta / 2) * (delta_forward / delta_theta + vert_odom->offset);
+    local_y = 2 * std::sin(delta_theta / 2) * (delta_left / delta_theta + horiz_odom->offset);
     }
     
     //global x and y(rotate the vector)
-    //use the heading at the MIDPOINT of this tick, not the start or end -
-    //pos.theta above already got updated to the new heading, so subtracting
-    //half of delta_theta back off recovers that midpoint
+    //use midpoint angle for better accuracy
     double avgHeading = pos.theta - delta_theta / 2;
-    pos.x += local_y * std::sin(avgHeading) - local_x * std::cos(avgHeading);
-    pos.y += local_y * std::cos(avgHeading) + local_x * std::sin(avgHeading);
+
+    //use the Pose.rotate method instead of writing the rotational matrix
+    Pose global_delta = Pose(local_x, local_y).rotate(avgHeading);
+    pos.x += global_delta.x;
+    pos.y += global_delta.y;
+
+    return true;
 }
 
 void drivetrain::arcade(int throttle, int turn){

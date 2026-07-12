@@ -17,6 +17,10 @@ class odom_wheel{
     odom_wheel(pros::Rotation* odom_sensor, double offset, double wheel_diameter) :
     odom_sensor(odom_sensor), offset(offset), wheel_diameter(wheel_diameter) {}
     pros::Rotation* odom_sensor;
+    // signed distance (inches) from the tracking center, measured perpendicular
+    // to the wheel's rolling direction. Sign convention (see update_pos - CCW frame):
+    //   vert (forward-rolling) wheel: positive = mounted LEFT of center
+    //   horiz (sideways-rolling) wheel: positive = mounted BEHIND center
     double offset;
     double wheel_diameter;
 };
@@ -56,9 +60,14 @@ class drivetrain : public Subsystem{
     // Call this once from initialize(), before anything reads imu->get_heading() -
     // during calibration it returns garbage, not a real heading.
     void calibrateIMU();
+
+    //heading abiding to standard conventions(flips angle because vex does compass style)
+    double getAngle();
     
-    //odom based updating
-    void update_pos();
+    // Reads sensors and updates the tracked pose for this tick.
+    // Returns false (pos left unchanged) if a required dead wheel is missing,
+    // true otherwise.
+    bool update_pos();
 
 
     void setPctLeft(int percent);

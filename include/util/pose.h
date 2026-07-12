@@ -1,7 +1,17 @@
 #pragma once
 
 /**
- * A robot's position and heading in 2D space: x, y, theta (radians).
+ * A robot's position and heading in 2D space: x, y, theta.
+ *
+ * Convention: STANDARD math frame (unit circle), NOT compass style.
+ * theta is in radians, counterclockwise is positive, and theta = 0 means
+ * facing along global +X. The VEX IMU reports clockwise-positive degrees
+ * instead - drivetrain::getAngle() flips it at the sensor boundary, so
+ * everything touching a Pose can assume this convention. That also makes
+ * theta directly consistent with what atan2 (used in angle()) and rotate()
+ * below already assume, so all the geometry here is self-consistent.
+ * theta is unbounded (keeps growing past 2pi on full spins); wrap it with
+ * sanitizeAngle() only when displaying or comparing headings.
  *
  * This is the actual "answer" an odometry system computes every tick: given
  * how far the wheels rolled and what the IMU reads, where is the robot on
