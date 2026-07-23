@@ -1,7 +1,7 @@
 #include "Controllers/velocity_feed_forward.hpp"
-#include "util/mathUtils.h""
+#include "util/mathUtils.h"
 
-int velocity_feed_forward::update(double velocity, double acceleration){
+double velocity_feed_forward::update(double velocity, double acceleration){
     return velocity * kV + acceleration * kA + kS * sgn(velocity); 
 }
 

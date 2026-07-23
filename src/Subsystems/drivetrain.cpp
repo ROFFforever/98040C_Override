@@ -6,10 +6,17 @@
 
 double odom_wheel::get_dist_delta(){
     if(odom_sensor != nullptr){ 
-        current_val = odom_sensor->get_position()* wheel_diameter * M_PI / 36000;
+        get_dist();
         double delta = current_val- prev_val;
         prev_val = current_val;
         return delta;
+    }
+    return Units::ERROR; //odom_sensor not working
+}
+double odom_wheel::get_dist(){
+    if(odom_sensor != nullptr){ 
+        current_val = odom_sensor->get_position()* wheel_diameter * M_PI / 36000;
+        return current_val;
     }
     return Units::ERROR; //odom_sensor not working
 }
@@ -68,10 +75,15 @@ double drivetrain::getAngle(){
     //flip angle to match mathematical format
     return degToRad(-imu->get_rotation());
 }
-
+int plugga = 0;
 void drivetrain::periodic(){
     if(!update_pos()){
         TELEMETRY.debug("MISSING SENSOR");
+    } 
+    plugga++;
+    if(plugga == 5){
+    TELEMETRY.debug(std::format("X: {}, Y: {}, Theta: {}", pos.x, pos.y, radToDeg(pos.theta))); 
+    plugga=0;
     }
 }
 
@@ -80,6 +92,13 @@ void drivetrain::setPctLeft(int pct){
 }
 void drivetrain::setPctRight(int pct){
     rightMotors->move(pct);
+}
+
+void drivetrain::setVoltageLeft(int millivolts){
+    leftMotors->move_voltage(millivolts);
+}
+void drivetrain::setVoltageRight(int millivolts){
+    rightMotors->move_voltage(millivolts);
 }
 
 //assume we have at least one tracking device

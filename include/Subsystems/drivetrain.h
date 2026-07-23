@@ -12,6 +12,7 @@
 class odom_wheel{
     public:
     double get_dist_delta();
+    double get_dist();
     double prev_val;
     double current_val;
     odom_wheel(pros::Rotation* odom_sensor, double offset, double wheel_diameter) :
@@ -30,8 +31,6 @@ class drivetrain : public Subsystem{
     private:
         pros::MotorGroup* leftMotors;
         pros::MotorGroup* rightMotors;
-        odom_wheel* vert_odom = nullptr; //direction of drive, nullptr if no dead wheel present
-        odom_wheel* horiz_odom = nullptr;
         pros::Imu* imu;
         Pose pos; //robot pos
         float wheel_diamter; //in inches
@@ -46,6 +45,8 @@ class drivetrain : public Subsystem{
 
 
     public:
+    odom_wheel* vert_odom = nullptr; //direction of drive, nullptr if no dead wheel present
+    odom_wheel* horiz_odom = nullptr;
     Timer* ticks;
 
     //simple drivetrain without odom tracking(manually track with drive)
@@ -72,6 +73,9 @@ class drivetrain : public Subsystem{
 
     void setPctLeft(int percent);
     void setPctRight(int percent);
+
+    void setVoltageLeft(int millivolts);
+    void setVoltageRight(int millivolts);
 
     //these are here for backup tracking in case dead wheel isn't available
     double getLeftDistance();  // total inches the left side has rolled since motor init/tare

@@ -7,7 +7,7 @@ class velocity_feed_forward{
     public:
     velocity_feed_forward(double kV, double kA, double kS) : kV(kV), kA(kA), kS(kS) {}
     //Units produced is in mV
-    int update(double velocity, double acceleration);
+    double update(double velocity, double acceleration);
     //ORDER IS IN: kV, kA, kI!!!
     std::array<double, 3> get_consts();
 };

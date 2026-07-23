@@ -7,18 +7,15 @@
 #include "Commands/IntakeTeleopCommand.h"
 #include "Subsystems/intake.h"
 
-pros::MotorGroup leftMotors({13, -12, -11});   // port numbers; negative = reversed
-pros::MotorGroup rightMotors({-18, 19, 20});
+pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
+pros::MotorGroup rightMotors({-11, -12});
 pros::Motor intake_motor_1(1);
-pros::Imu imu(2);                  // port 7
+pros::Imu imu(10);                  // port 7
 
 
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
-pros::Rotation vertRotation(6);            // plain global, same as leftMotors/rightMotors/imu above -
-                                            // NOT `new`'d, since heap-allocating a device object at
-                                            // global scope runs before PROS's hardware layer is ready
-                                            // and was crashing with a DATA ABORT
-odom_wheel vert(&vertRotation, 0, 1);
+pros::Rotation vertRotation(1);           
+odom_wheel vert(&vertRotation, 0, 2.0);
 odom_wheel horiz(nullptr, 0, 0);
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 450, &vert, &horiz); // 450 = wheel's actual output rpm after gearing
 intake intake_motors({&intake_motor_1}, false);
