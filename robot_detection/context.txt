@@ -1,0 +1,26 @@
+The user has this problem:
+
+So we have the odometry tracking logic in, now I want to test how accurate this odometry tracking is by collecting some data. However I am unsure how to best collect data as I run into several issues. So the core goal is probably to determine the accuracy of the robot's theoretical position(the one it computes using odometry) compared to reality. However, I can't think of a good way to go about doing this. Storing the robot's theoretical pose is easy enough(just send over using telem every couple of ticks etc.), but I don't know how to compare efficiently to reality. I could obviously just run some route and then compare the end pose of both hypothetical and reality, but this seems pretty inefficient and slow, as well as hiding some valuable insights(where is odometry most erronous etc.). What are some ways I can test more efficiently and accurately(I was thinking to obtain real life coords I would just manually measure by ruler, not sure if that's a great idea though)?
+
+
+And to these multiple questions, the user has discovered this solution:
+
+A real time program utilizing a camera of some sort placed overhead to capture part of the field to calculate robot position tick by tick and saves it. 
+
+
+Context with the user(this was pasted directly from another message so may seem odd):
+I am new to april tag detection entirely(openCV, the python involved in this, and all) and have up to a AP calc AB knowledge, so other than a rotation matrix, I'm pretty much clueless. Second, I've created a robot detection folder and I would like you to teach me(or point me in the direction of some good sources, although hands on is preffered--unless I need prerequisite knowledge). I'm not exactly sure how to start this project and all, so please initiate with the most appropiate steps in your opinion to teach me
+
+
+
+
+
+FURTHER CONTEXT:
+
+Project context for handoff:
+
+Brian (VEX team 98040C, project folder 98040C/) has odometry working and wants to measure its real-world accuracy. Chosen approach: an overhead-camera ground-truth system — AprilTag on the robot, homography mapping pixels → field inches, logged and compared against the robot's telemetry pose. iPhone video (record, process offline) as proof of concept before buying a camera.
+
+Work lives in robot_detection/: a .venv with OpenCV 5.0 + numpy, plus lessons 01–04 (numpy images → tag generation → still detection → live webcam) and LESSONS.md. Verified working.
+
+Next: Lesson 5 (homography), 6 (video→CSV), 7 (time-sync vs. odometry). Robot side needs pros::millis() timestamps in telemetry.

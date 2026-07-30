@@ -1,0 +1,384 @@
+Programming Goals:
+Refactor and organize the codebase
+Adopt a cleaner architecture inspired by Echo's repository.
+Organize custom features into a class hierarchy.
+Abstract and simplify driver control code.
+Improve autonomous code organization and auton selection.
+Develop utility tools
+Create a PID motion tuning visualizer.
+Complete a robot position tracking visualizer.
+Add battery percentage, motor temperature, and telemetry displays.
+Continue building productivity/debugging scripts.
+(Scorekeeper script completed.)
+Improve localization
+Implement a more robust localization method (e.g., MCL or enhanced distance sensor localization) to increase autonomous consistency.
+Enhance autonomous development
+Take into account robot tear and wear, so use motion profilers to safely control speed, acceleration and such
+Use a feedforward + feedback model instead of a simple feedback model
+Utilize more advanced path following algorithms instead of simple linear motions.
+Add an onboard GUI
+Create a Brain interface for features such as auton selection, drive configuration, and motor diagnostics.
+
+
+
+Overall Theme
+The primary focus is to make the robot software cleaner, more maintainable, easier to develop with, and more reliable, while improving tooling, localization, autonomous performance, and usability ahead of the build deadline.
+
+
+The main goal was to make the code cleaner, maintainable, and easier to develop with rather than having a clunky, massive, bloated codebase.
+
+
+
+
+
+
+
+Table of Contents:
+Refactoring the codebase(making it cleaner,maintainable, and easy to add more features later)
+Choosing a type of software architectural design
+Implementing the design
+Testing
+Localization features
+Odometry with dead wheels and IMU
+MCL
+Utility features
+Telemetry
+Score calculator
+Improving Auton development, efficiency, and accuracy.
+PID
+Feedforward loops
+Motion profiles
+Trapezoidal motion profile
+Improved linear motions called: Tank motion profile
+Adding on board GUI
+
+
+Refactoring the Codebase
+Choosing a Base Software Architectural Design
+Intro/Context
+Last year, we built our code on top of LemLib, an open-source robotics library. However, we quickly ran into issues when trying to add our own features. Although LemLib is called a library, it functions more like a standalone project that manages the drivetrain and much of the robot's low-level behavior. As a result, implementing new features—such as distance sensor resetting, custom robot commands, and other systems—required us to first develop the logic, then integrate it into LemLib, rather than simply coding it directly into our own project. Essentially, using LemLib significantly slowed down our ability to develop and experiment with custom features.
+Additionally, last year we kept all of our methods, fields, hardware, and robot logic inside one giant monolithic class: Robot. This resulted in one massive file, redundant code, globbed-together features, and, most importantly, a terrible programming experience. As the season progressed, the codebase became increasingly messy, bloated, and difficult to work with.
+List of reasons why LemLib + our old codebase was problematic:
+Poor separation of features (for example, intake logic and piston logic lived in the same class).
+One change in one feature had massive ripple effects throughout the codebase because the design was not modular.
+Difficult maintenance.
+As the project grew and we needed more custom functionality, maintaining everything became a disaster as one class absorbed hundreds of functions and variables.
+
+Brainstorming a New Design
+Intro/Context
+The first thing we decided to do was abandon LemLib. Since we were implementing a completely new system architecture, we would have had to heavily refactor LemLib just to make it work within our framework. Instead, we chose to build our own library from the ground up, giving us complete freedom to design features without being constrained by an existing codebase. This decision didn't require us to sacrifice much, as we only relied on a small subset of LemLib's functionality, all of which we could easily implement ourselves.
+Additionally, unlike last year—when we started development near the end of summer—we had the entire summer to design, develop, and heavily test our new library.
+
+
+System Design / Framework
+In this context, a framework is the underlying structure that organizes how the robot software is written and how its different parts interact. Rather than being a single feature, it provides a set of rules and systems for managing hardware, running robot actions, handling driver controls, and coordinating autonomous routines. A well-designed framework makes it easier to add new features, keeps code organized, and reduces the amount of code that has to be rewritten as the project grows. Instead of focusing on individual functions, programmers build on top of the framework, allowing the software to remain modular, maintainable, and scalable throughout the season.
+
+Option 1: Monolithic Robot Class
+Like last year, we could keep all hardware, methods, states, and robot logic inside one massive file.
+Pros
+Easy to implement.
+Beginner-friendly and intuitive.
+Familiar from past experience.
+Cons
+Poor separation of features.
+Poor maintainability.
+Not scalable.
+
+Option 2: Subsystem-Based Architecture
+In this framework, each hardware system on the robot (drivetrain, intake, pistons, etc.) is separated into its own class. Each subsystem inherits from a parent Subsystem class, allowing for dynamic polymorphism while keeping hardware isolated from the rest of the code.
+Pros
+Modular hardware design.
+Clean and organized hardware.
+Reusable code.
+Safer code, since hardware is encapsulated inside its respective subsystem.
+Cons
+Doesn't solve the problem of organizing robot actions or the algorithms that use the hardware.
+With lots of hardware, the number of files can become fairly large.
+Harder to implement since it requires knowledge of object-oriented programming and polymorphism.
+
+Option 3: Command-Based Architecture
+In this framework, all robot actions are managed by a singleton called the Command Scheduler. This is the robot's "brain"—it is responsible for deciding which commands should run, when they should run, and when they should stop.
+A command is any action that directly controls the robot's hardware. For example, teleoperated driving is a command because it manipulates the drivetrain using controller inputs. Likewise, running the intake, following a path, or turning to a heading are all considered commands.
+The Command Scheduler queues commands, executes them, safely cancels them when necessary, and ensures that no two commands try to control the same hardware at the same time. By centralizing command execution, the scheduler keeps robot behavior organized, prevents conflicts between different parts of the program, and makes it much easier to add new robot functionality.
+Pros
+Arguably the cleanest, most organized, and most modular design.
+Prevents resource contention(two different commands using the same hardware, causing many problems) between commands.
+Easy to debug.
+Easy to extend—you simply create new commands.
+Supports running multiple independent commands asynchronously when possible.
+Cons
+Arguably the hardest design to implement.
+The number of files grows with the number of commands, which can result in a large project structure.
+
+
+Conclusion:
+After much consideration, we decided to choose a hybrid approach of Option 2 and Option 3: a Command Scheduler framework with an underlying Subsystem layer to encapsulate all of our hardware.
+This gave us the best of both architectures. The subsystem layer cleanly separated each hardware component into its own class, making the code more modular, organized, reusable, and safer by preventing direct hardware access throughout the codebase. On top of this, the Command Scheduler provided a centralized way to manage robot actions, allowing commands to be queued, run, interrupted, and composed without conflicting over hardware resources.
+
+
+
+Implementing the command scheduler framework:
+
+As mentioned before, the core of this framework lies upon three things: Subsystems--classes that encapsulate hardware and provide basic functions to interact with that hardware; Commands--logic that manipulates hardware, an example is a driver teleop command; and finally, the command scheduler ties everything together by acting as the brain behind the whole framework. 
+
+
+
+
+Commands:
+
+Every command inherits from a parent "Command" class, inheriting 4 key virtual functions:
+
+initialize() — runs once, right when the command gets scheduled.
+execute() — runs every scheduler tick while the command is active(usually 60hz)
+isFinished() — returns true once the command should stop on its own. It defaults to false, so a command runs forever unless it's cancelled or another command takes its subsystem. For example the driver teleop command never returns true for isFinished(), allowing it to run indefinitely.
+end(interrupted) — runs once when the command stops, whether it finished on its own or got cut off early. The parameter interrupted tells you what was the case.
+
+And the other things it inherits:
+
+getRequirements() — returns which subsystem(s) the command needs to run. This is what the scheduler checks to make sure two commands never fight over the same hardware.
+getCancelBehavior() — decides what happens if another command wants the same subsystem while this one is still running: either let the new one take over (CancelRunning), or block the new one from starting at all (CancelIncoming).
+schedule(), cancel(), scheduled() — small helper functions that just forward to the CommandScheduler, so a command can start/stop/check itself without needing to go through the scheduler directly.
+
+Other things about it:
+
+Command is an abstract class, meant to be inherited, and this polymorphism allows the command scheduler to call any one of the four virtual functions on a command and it will work. 
+
+
+
+---
+The Command Scheduler:
+
+The Command Scheduler is a singleton—a class with exactly one instance that exists for the entire life of the program(accessed through CommandScheduler::getInstance()). Every Subsystem and Command in the robot interacts with this same shared instance, which is what lets it act as the central authority deciding what runs and when since everything answers to it.
+
+Fields
+
+- subsystems — a map from each registered Subsystem to its default command (the command that runs automatically whenever nothing else has claimed that Subsystem—for example, arcade drive running whenever no autonomous or auto-align command is using the drivetrain).
+- requirements — a map from each Subsystem to whichever Command currently "owns" it, if any. This is how the scheduler knows a Subsystem is busy.
+- scheduledCommands — a list of every Command currently running.
+- inRunLoop, toSchedule, toCancel — bookkeeping used to safely schedule or cancel commands while the scheduler is in the middle of running through scheduledCommands. These are coded to check whether the command scheduler is actively in--loop, preventing modification of the scheduled commands list(which may cause undefined behavior).
+
+Functions
+
+- registerSubsystem(Subsystem*, Command* default_command) — registers a Subsystem with the scheduler and assigns it a default command. Called once per Subsystem during initialize(). 
+- schedule(Command*) — starts running a command. If the command needs a Subsystem that's already claimed by another running command, the scheduler checks that command's cancel behavior: CancelRunning means the old command is interrupted and replaced; CancelIncoming means the new command is rejected and the old one keeps running. This is what physically prevents two commands from fighting over the same motor. This is also why we have the “requirements” list--in order to find conflicts between subsystem commands.
+- run() — the scheduler's main loop, called once per tick (every ~16ms in our loop). Each call: runs periodic() on every Subsystem, runs execute() on every scheduled command, ends and removes any command whose isFinished() returns true, applies any deferred schedule/cancel requests, and re-schedules default commands for any Subsystem that's currently unclaimed. So basically standard bookkeeping, running at 60hz.
+- cancel(Command*) — stops a command early (interrupted), running its end(true)--a function called once the command finishes-- and freeing the Subsystem(s) it was holding.
+- scheduled(Command*) — returns whether a given command is currently running.
+- getRequiring(Subsystem*) — returns whichever command currently owns a given Subsystem, if any.
+
+Supporting pieces
+
+The scheduler coordinates two other base classes:
+
+- Subsystem — an abstract class every hardware mechanism (drivetrain, intake, etc.) extends. It exposes one required method, periodic(), called every tick regardless of what command is using it—useful for sensor updates or self-contained feedback loops.
+- Command — an abstract class every robot action extends. Its lifecycle is initialize() → execute() (repeated every tick) → end(interrupted). getRequirements() tells the scheduler which Subsystem(s) the command needs, and getCancelBehavior() tells it what to do if another command wants that same Subsystem while this one is running.
+
+Example: Arcade Drive
+
+To show this in practice, here's the drivetrain's default teleop command:
+
+class ArcadeDriveCommand : public Command {
+private:
+    drivetrain* drive;
+    pros::Controller* controller;
+
+public:
+    ArcadeDriveCommand(drivetrain* drive, pros::Controller* controller);
+    void execute() override;
+    std::vector<Subsystem*> getRequirements() override;
+};
+
+void ArcadeDriveCommand::execute() {
+    drive->arcade(controller->get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y),
+                  controller->get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X));
+}
+
+std::vector<Subsystem*> ArcadeDriveCommand::getRequirements() {
+    return {drive};
+}
+
+
+
+isFinished() is left at its default (false), so this command never ends on its own—it simply runs forever whenever the drivetrain isn't claimed by anything else, which is exactly what we want for teleop driving.
+
+In main.cpp, this gets wired into the scheduler:
+
+void initialize() {
+    chassis.calibrateIMU();
+
+    CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
+    CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
+}
+
+void opcontrol() {
+    while (true) {
+        CommandScheduler::run();
+        pros::delay(16); // 60hz
+    }
+}
+
+Once the drivetrain and intake are registered with their default commands, opcontrol() becomes a single loop that just calls CommandScheduler::run(). No manual "read joystick, write to motor" logic lives in main.cpp anymore—the scheduler handles dispatching the right command to the right hardware every tick, and if we schedule an autonomous-style command (like a turn-to-heading command) on top of the drivetrain, it automatically takes over from arcadeDrive and hands control back once it finishes.
+
+
+
+Subsystem:
+
+
+
+Subsystem:
+
+Every subsystem inherits from a parent "Subsystem" class, inheriting 1 key virtual function:
+
+periodic() — runs every scheduler tick, regardless of whether a command currently owns the subsystem or not. This is where sensor updates or self-contained feedback loops live, for example, pulling in rotation sensor readings to update odometry, since that needs to happen constantly and shouldn't depend on whatever command happens to be running.
+
+Other things about it:
+
+Subsystem is abstract too, same as Command, but it's a much smaller class — periodic() is really the only thing it asks for. That's on purpose: a subsystem's job is just to hold the hardware and keep its state updated, not to decide what that hardware should actually do. That decision-making is left entirely to commands, which is what keeps hardware access contained to one place instead of getting spread across the codebase.
+
+
+
+Testing:
+
+
+Our newly implemented hybrid design of the command scheduler + subsystem design has shown greatly increased organization and modularity, vastly improving programming efficiency and enjoyability(which actually matters a lot!).
+
+Metrics and key points of comparison: 
+
+- main.cpp went from 2,421 lines last year down to 97 lines this year. Last year, all of our setup, driver control, and autonomous logic lived directly inside main.cpp. This year, main.cpp only registers subsystems/commands and runs the scheduler loop — everything else lives in its own file.
+- Last year's Robot class (Robot.hpp + Robot.cpp) was 458 lines combined, and it held the chassis, all three intake motors, all four pistons, the distance sensors, and the controller in one single class, with a constructor that took 12 separate parameters just to build it. This year, that same hardware is split across 19 separate subsystem/command files totaling roughly 930 lines, and each subsystem's constructor only takes what it actually needs — for example, drivetrain takes 5-7 params, intake takes 2. Nothing is bundled together that doesn't need to be.
+- Last year's main.cpp had 67 free-floating functions defined at file scope, roughly 50 of which were individual autonomous routines (e.g. sevenBallBlueLeft, sevenBallBlueRight, sevenBallRedLeft, fourThreeLongFirstLeftBlue, fourThreeLongFirstRightBlue, fourThreeLongFirstRightRed...). Most of these are copy-pasted variants of each other for different colors/sides, together making around 174 separate hardcoded moveToPoint/moveToPose/turnToHeading calls, with no shared structure between them.
+- Last year's main.cpp also had 8 loose global mutable variables (wall_reset_enabled, color_sort_auton, driver_skills, etc.) sitting at file scope with nothing stopping any function from reading or overwriting them. This year, state like that is scoped inside whichever subsystem/command actually owns it, so it can't be touched from unrelated code by accident.
+
+
+
+
+
+
+
+
+
+Improving autonomous development, accuracy, and efficiency:
+
+
+Understanding the importance of Motion Profilers:
+
+
+In past years, we relied on a simple feedback loop like PID to chase a target, correcting error as we went. A motion profiler takes a different approach: instead of reacting to error, it plans the entire motion ahead of time. Given an input t—time—it outputs the exact position, velocity, and acceleration the robot should have at that moment, effectively acting as the "path generator" for a motion. This planned approach offers advantages across the board — smoother motor control means less wear and tear on our drivetrain, and following a known, consistent path (rather than just closing the gap to a target) makes our movements far more accurate and repeatable.
+
+
+
+Trapezoidal Motion Profiler
+
+How they work:
+
+A trapezoidal motion profiler is one of the simplest motion profilers out there. Given a target distance, a cruise velocity, and a desired acceleration, it generates a velocity graph shaped like a trapezoid — hence the name. The first "leg" is the accelerating stage, where the robot smoothly ramps up to the given cruise velocity using the given acceleration. Once it hits that cruise velocity, it holds steady for the middle stage. Finally, in the last leg, it decelerates smoothly back down to a velocity of 0 as it approaches the target.
+
+An image to help break it down:
+
+As you can see, the first leg of the profile is spent smoothly accelerating (the y-axis here is velocity) up toward the cruise velocity, at which point the acceleration drops to 0 and it holds flat. Then, in the final stage, the profile decelerates smoothly back down to velocity = 0.
+
+Implementation:
+
+We first placed this trapezoidal class in the "Controllers" folder.
+
+Functions:
+
+- Constructor — takes in Constraints (cruise velocity + acceleration), a goal State, and an optional initial State (defaults to resting at position 0). It figures out which direction we're actually travelling, then works out where each stage of the trapezoid starts and ends. If the target is too close to ever reach cruise velocity, it automatically falls back to a shorter "triangle" profile instead — accelerating and immediately decelerating without ever holding a flat speed.
+- calculate(t) — given a time t (in seconds), returns the position, velocity, and acceleration the robot should have at that exact instant, or nothing if t is past the end of the profile. This is the actual "generator" part — we call this every tick during a profiled movement to get our next target.
+- totalTime() — returns how long the whole profile takes to run, so we know when to stop calling calculate().
+
+Fields:
+
+- constraints — the cruise velocity and acceleration that shape the whole profile.
+- initial / goal — the starting and ending State (position, velocity, acceleration) of the motion.
+- direction — either 1 or -1 depending on whether the goal is ahead of or behind the initial position, so the same math works no matter which way we're actually driving.
+- endAccel, endFullSpeed, endDecel — the timestamps marking where each stage of the trapezoid ends: acceleration, cruising, and deceleration, respectively.
+
+
+
+
+Example usage:
+
+// Set up the "shape" of the motion: how fast to cruise, how fast to accelerate
+constraints = Constraints(cruise_vel = 40 in/s, accel = 60 in/s^2) //in this case, we would get to our cruise_velocity in ⅔ of a second, because 40/60
+
+// Where we're starting and where we want to end up
+start = State(position = 0,  velocity = 0, acceleration = 0)
+goal  = State(position = 24, velocity = 0, acceleration = 0)   // drive 24 inches and stop
+
+profile = TrapezoidProfile(constraints, goal, start)
+
+elapsedTime = 0
+
+// runs once per scheduler tick (e.g. every 16ms)
+while elapsedTime <= profile.totalTime():
+    target = profile.calculate(elapsedTime)
+
+    if target exists:
+        // target.position / target.velocity / target.acceleration
+        // are what the robot SHOULD be at right now
+        drive_to(target.position, target.velocity)
+
+    elapsedTime += 16ms
+
+The key idea: instead of the robot just being told "go to 24 inches" and figuring out speed on its own with PID, the profile hands us a full-blown moving target every tick — "at 0.3 seconds you should be at 4 inches going 18 in/s," "at 0.6 seconds you should be at 12 inches going 40 in/s," and so on. Our job just becomes tracking that constantly-moving target as closely as possible, instead of chasing a single static goal.
+
+We'd also typically wrap this whole loop inside a Command (like a DriveDistanceCommand), so initialize() builds the TrapezoidProfile, execute() runs the loop body above once per tick, and isFinished() simply checks elapsedTime >= profile.totalTime().
+
+
+
+Testing:
+We haven’t tested this yet, will soon though. Will finish this page once results come in.
+
+
+
+
+---
+Feedforward loops:
+
+Unlike last year, where we relied solely on feedback loops like PID, this year we wanted to start adopting the feedforward model as well.
+
+What is a feedforward model? What's the difference with feedback?
+
+The simplest way to think of a feedforward model is that it predicts, rather than reacts. That's the core difference between feedforward and feedback: feedback (like PID) only responds to current data — in PID's case, that's error. A feedforward model instead looks at what we want to happen and calculates what it should take to make that happen, before any error even exists.
+
+For example, a velocity feedforward controller takes in two inputs: desired velocity and desired acceleration. From those, it calculates the voltage needed to actually achieve them. In other words, it predicts the voltage required to hit a given velocity and acceleration, rather than waiting to see how far off we are and correcting after the fact.
+
+PID, on the other hand, works with completely different inputs and is purely reactive — it takes in error (how far we are from the target) and outputs a voltage proportional to how large that error is, essentially responding to the current situation rather than anticipating it.
+
+Mathematically, a feedforward model actually looks pretty similar to a PID controller: kV*V + kA*A + kS. The difference is in what each term represents. Where PID's terms are built around error, feedforward's are built around our desired values — it multiplies desired velocity by kV and desired acceleration by kA, then adds kS, the baseline voltage needed just to overcome static friction, to get the final voltage needed to hit those targets.
+
+
+
+Implemenatoin:
+Implementation:
+
+We placed our feedforward class, velocity_feed_forward, in the "Controllers" folder — right alongside the trapezoidal profiler and our PID controller.
+
+Fields:
+
+- kV, kA, kS — the three tuning constants from the feedforward equation. These get found through characterization testing on the actual robot, not guessed.
+
+Functions:
+
+- Constructor — just takes in and stores kV, kA, and kS.
+- update(velocity, acceleration) — the actual feedforward calculation. Plugs the desired velocity and acceleration into kV*V + kA*A + kS, and returns the predicted voltage (in millivolts) needed to hit them. One detail worth calling out: kS is scaled by the sign of velocity (sgn(velocity)), not just added flat — static friction pushes back in whichever direction the robot is trying to move, so the sign has to flip with it.
+- get_consts() — just returns kV, kA, kS packed into an array, mainly for debugging/telemetry.
+
+On its own, feedforward is only half the picture — it's a prediction, not a guarantee, since things like battery voltage sag or an uneven field tile can throw it off a bit. That's why we pair it with the trapezoid profile we covered earlier: the profile hands us a target velocity and acceleration for the current instant, and feedforward converts that into the voltage to actually send. This is wired together in a command called tank_motion_profile:
+
+void tank_motion_profile::execute() {
+  double curr_time = (pros::millis() - start_time) / 1000.0;
+  auto result = motion->calculate(curr_time);
+
+  if (result.has_value()) {
+    TrapezoidProfile::State state = result.value();
+    int mV = fd.update(state.velocity, state.acceleration);
+    drive.setVoltageLeft(mV);
+    drive.setVoltageRight(mV);
+  }
+}
+
+Every tick, the profile is asked "what should our velocity and acceleration be right now?", and the feedforward model immediately converts that answer into a voltage sent straight to the drivetrain — no waiting around for error to build up first. Worth noting: the command also holds a PID instance, meant to clean up any small leftover position error once the profile finishes, but that part isn't wired in yet — right now it's just feedforward driving the motion.I will fix this later henry since it currently isn’t done
+
+

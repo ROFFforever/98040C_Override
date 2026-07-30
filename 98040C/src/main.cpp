@@ -2,14 +2,25 @@
 #include "Units.h"
 #include "Subsystems/drivetrain.h"
 #include "Telemetry/telemetry.h"
+#include "CommandScheduler/commandScheduler.h"
+#include "Commands/ArcadeDriveCommand.h"
+#include "Commands/IntakeTeleopCommand.h"
+#include "Subsystems/intake.h"
 
-pros::MotorGroup leftMotors({-13, 12, 11});   // port numbers; negative = reversed
-pros::MotorGroup rightMotors({-18, 19, 20});
-pros::Imu imu(7);                  // port 7
+pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
+pros::MotorGroup rightMotors({-11, -12});
+pros::Motor intake_motor_1(1);
+pros::Imu imu(10);                  // port 7
 
 
-
-drivetrain myDrive(&leftMotors, &rightMotors, &imu, 450); // 450 = wheel's actual output rpm after gearing
+pros::Controller controller(pros::E_CONTROLLER_MASTER);
+pros::Rotation vertRotation(1);           
+odom_wheel vert(&vertRotation, 0, 2.0);
+odom_wheel horiz(nullptr, 0, 0);
+drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 450, &vert, &horiz); // 450 = wheel's actual output rpm after gearing
+intake intake_motors({&intake_motor_1}, false);
+ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
+IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
 
 /**
  * Runs initialization code. This occurs as soon as the program is started.
@@ -21,7 +32,16 @@ void initialize() {
 	pros::lcd::initialize();
 	pros::lcd::set_text(1, "Hello PROS User!");
 
-	TELEMETRY.setSerial(new pros::Serial(0, 921600));
+	// Blocks ~2s while the IMU's gyro/accel finish their startup calibration,
+	// so nothing downstream (odom, telemetry) reads garbage headings before
+	// the sensor is actually ready.
+	chassis.calibrateIMU();
+
+	// From now on, whenever nothing else has claimed myDrive, the scheduler
+	// runs arcadeDrive on it - this is what makes teleop driving "just work"
+	// once CommandScheduler::run() is looping in opcontrol().
+	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
+	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
 }
 
 /**
@@ -69,9 +89,10 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
-	myDrive.setPct(30);
+	Timer time(10);
+	chassis.ticks = &time;
 	while(true){
-
+		CommandScheduler::run();
 		pros::delay(16); //60hz
 	}
 }

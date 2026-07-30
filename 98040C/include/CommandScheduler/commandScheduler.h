@@ -74,7 +74,7 @@ public:
             return;
         }
 
-        if (instance.inRunLoop) {
+        if (instance.inRunLoop) { //if scheduler is in the middle of running the loop
             instance.toSchedule.emplace_back(command);
             return;
         }
@@ -85,9 +85,9 @@ public:
         auto requirements = command->getRequirements();
 
         for (auto requirement : instance.requirements) {
-            if (std::find(requirements.begin(), requirements.end(), requirement.first) != requirements.end()) {
+            if (std::find(requirements.begin(), requirements.end(), requirement.first) != requirements.end()) { //if we find the same subsystem taking place, then enter if loop
                 allInterruptible &= requirement.second->getCancelBehavior() == CommandCancelBehavior::CancelRunning;
-                conflicting.push_back(requirement.second);
+                conflicting.push_back(requirement.second); //add conflicting command into conflicting vector
             }
         }
 
