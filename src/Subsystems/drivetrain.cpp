@@ -1,6 +1,7 @@
 #include "Subsystems/drivetrain.h"
 #include <cmath>
 #include <cstdint>
+#include "Controllers/velocity_feed_forward.hpp"
 #include "Telemetry/telemetry.h"
 #include "util/mathUtils.h"
 
@@ -20,15 +21,16 @@ double odom_wheel::get_dist(){
     }
     return Units::ERROR; //odom_sensor not working
 }
-drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM) {
+drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, PID* angular_pid) {
     this->leftMotors = leftMotors;
     this->rightMotors = rightMotors;
     this->imu = imu;
     this->wheel_diamter = wheel_diameter;
     this->wheelRPM = wheelRPM;
+    this-> angular_pid = angular_pid;
 }
 
-drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom) {
+drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff,PID* residual_PID_lateral) {
     this->leftMotors = leftMotors;
     this->rightMotors = rightMotors;
     this->imu = imu;
@@ -36,6 +38,9 @@ drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMoto
     this->wheelRPM = wheelRPM;
     this->vert_odom = vert_odom;
     this->horiz_odom = horiz_odom;
+    this-> angular_pid = angular_pid;
+    this->ff=ff;
+    this->residual_PID_lateral=residual_PID_lateral;
 }
 
 double drivetrain::getLeftDistance() {
@@ -158,4 +163,10 @@ void drivetrain::arcade(int throttle, int turn){
 
     setPctLeft(leftPct);
     setPctRight(rightPct);
+}
+double drivetrain::get_lateral_velocity(){
+   return (this->vert_odom->wheel_diameter * degToRad(this->vert_odom->odom_sensor->get_velocity() / 100.0)) / 2.0; //return in inches/sec
+}
+Pose drivetrain::gpos(){
+    return this->pos;
 }

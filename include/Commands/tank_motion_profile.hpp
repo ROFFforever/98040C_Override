@@ -4,21 +4,25 @@
 #include "Controllers/trapezoid_profile.hpp"
 #include "CommandScheduler/command.h"
 #include "Subsystems/drivetrain.h"
+#include "Units.h"
 class tank_motion_profile : public Command{
     private:
-        velocity_feed_forward fd; //feedforward model 
-        PID pid; //cleanup PID to adjust error in positioning
+       
+        double x,y,theta,exit_range;
+        int max_time;
         TrapezoidProfile* motion; //the actual motion to be ran
-        drivetrain drive;
+        drivetrain* drive;
+        MotionParams constraints;
         
         //start_time stored in millis to make life easier
         double start_time;
+        double turn_time;
 
     public:
-        tank_motion_profile(velocity_feed_forward fd, PID pid, drivetrain drive, TrapezoidProfile* motion = nullptr) : fd(fd),pid(pid), drive(drive), motion(motion) {}
-        void register_motion(TrapezoidProfile* motion);
+        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::TNOT_PROVIDED,double exit_range = Units::CLOSE, double theta=Units::AUTO_HEADING) : drive(drive), x(x), y(y), constraints(constraints), theta(theta), max_time(max_time),exit_range(exit_range) {}
         void initialize() override;
         void execute() override;
         bool isFinished() override;
         void end(bool interrupted) override;
+        std::vector<Subsystem*> getRequirements() override;
 };

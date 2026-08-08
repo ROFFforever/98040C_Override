@@ -7,7 +7,8 @@
 #include "util/timer.h"
 #include "pros/rotation.hpp"
 #include "util/pose.h"
-
+#include "Controllers/PID.hpp"
+#include "Controllers/velocity_feed_forward.hpp"
 
 class odom_wheel{
     public:
@@ -35,7 +36,6 @@ class drivetrain : public Subsystem{
         Pose pos; //robot pos
         float wheel_diamter; //in inches
         double wheelRPM; // actual output rpm of the wheel after external gearing, e.g. 450, 360
-
         // last tick's readings, so periodic() can diff against them to get distance moved since last tick
         double prevLeftDist = 0;
         double prevRightDist = 0;
@@ -48,11 +48,13 @@ class drivetrain : public Subsystem{
     odom_wheel* vert_odom = nullptr; //direction of drive, nullptr if no dead wheel present
     odom_wheel* horiz_odom = nullptr;
     Timer* ticks;
-
+    velocity_feed_forward* ff;
+    PID* angular_pid;
+    PID* residual_PID_lateral;
     //simple drivetrain without odom tracking(manually track with drive)
-    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM);
+    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, PID* angular_pid);
     //Drivetrain with basic odom, if don't have a dead wheel, set nullptr
-    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom);
+    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff, PID* residual_PID_lateral);
     
     void periodic() override; //put localization in here
     //-127/127
@@ -70,10 +72,12 @@ class drivetrain : public Subsystem{
     // true otherwise.
     bool update_pos();
 
+    Pose gpos(); //get pose of robot
 
     void setPctLeft(int percent);
     void setPctRight(int percent);
 
+    double get_lateral_velocity();
     void setVoltageLeft(int millivolts);
     void setVoltageRight(int millivolts);
 

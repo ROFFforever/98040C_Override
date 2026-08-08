@@ -1,0 +1,45 @@
+TMP = Tank motion profile
+
+TMP is command which takes in XY HEADING as input.
+It will also take in some kind of data which let's
+TMP know what sort of acceleration + cruise velocity to use.
+I am thinking maybe we use an enum to classify
+acceleration + cruise velocity types, otherwise I 
+would have to manually type out accel and velocity 
+every time(which wouldn't be too bad ig, but enum still
+more efficient i think)
+
+EX:
+profile::FAST
+profile::SLOW
+profile::SMALL_FAST(like small accel but cruise speed is fast(high))
+
+idk, the enums listed above are only for brainstorming 
+purposes and those names are not the ones I will actually use.
+
+We create only one TMP object so we can reuse input,
+as opposed to creating a new TMP for every new motion.
+
+Internally, TMP takes pose(x,y,and heading) and creates
+a trap. motion profile to read data from.
+
+TMP will probably use some sort of PID for turning,
+i think this PID will be stored in the drivetrain, 
+because it's convient. Something like:
+PID angularPID; //pid vals for drivetrain turning
+
+TMP will constantly use angular PID to readjust heading during 
+the lateral phase of the motion.
+
+TMP will also recalulate linear error smartly by taking
+into consideration that the robot won't be perfectly head on
+with target pose after the intial turning phase.
+
+How TMP will get to target pose:
+1.) TMP creates trap. profile
+2.) TMP turns to angle of point(using angular PID)
+3.) TMP uses the trap. profile to feed feedforward model(kav)
+4.) Residual PID cleans up any sort of error in kav
+5.) TMP stops at some range(maybe ~1 inches of target) 
+and if user also included where to turn next, it does that too.
+

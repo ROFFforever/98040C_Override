@@ -33,7 +33,7 @@ public:
     // subtracts two poses component-wise; heading is kept from this pose, not other
     Pose operator-(const Pose& other) const;
 
-    // straight-line distance between this pose and other, ignoring heading
+    // straight-line distance between this pose and other using hypot
     float distance(const Pose& other) const;
     // angle (radians) from this pose toward other, ignoring heading
     float angle(const Pose& other) const;
