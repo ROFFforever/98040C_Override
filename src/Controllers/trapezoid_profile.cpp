@@ -70,6 +70,10 @@ double TrapezoidProfile::totalTime() const {
     return endDecel;
 }
 
+double TrapezoidProfile::getDist(){
+    return goal.position;
+}
+
 TrapezoidProfile::State TrapezoidProfile::direct(State in) const {
     in.position *= direction;
     in.velocity *= direction;

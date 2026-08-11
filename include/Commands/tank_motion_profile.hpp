@@ -18,6 +18,12 @@ class tank_motion_profile : public Command{
         double start_time;
         double turn_time;
 
+        //so we can accumulate time turning
+        int last_time_turned;
+
+        //check whether motion is finished
+        bool finished=false;
+
     public:
         tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::TNOT_PROVIDED,double exit_range = Units::CLOSE, double theta=Units::AUTO_HEADING) : drive(drive), x(x), y(y), constraints(constraints), theta(theta), max_time(max_time),exit_range(exit_range) {}
         void initialize() override;

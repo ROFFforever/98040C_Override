@@ -20,6 +20,8 @@ public:
 
     double totalTime() const;
 
+    double getDist(); //returns end dist
+
 private:
     Constraints constraints;
     State initial;
