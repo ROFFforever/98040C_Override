@@ -33,7 +33,7 @@ class drivetrain : public Subsystem{
         pros::MotorGroup* leftMotors;
         pros::MotorGroup* rightMotors;
         pros::Imu* imu;
-        Pose pos; //robot pos
+        Pose pos; //robot pos, theta stored in radians
         float wheel_diamter; //in inches
         double wheelRPM; // actual output rpm of the wheel after external gearing, e.g. 450, 360
         // last tick's readings, so periodic() can diff against them to get distance moved since last tick
@@ -73,6 +73,7 @@ class drivetrain : public Subsystem{
     bool update_pos();
 
     Pose gpos(); //get pose of robot
+    void setPose(double x, double y, double theta); //theta in radians
 
     void setPctLeft(int percent);
     void setPctRight(int percent);

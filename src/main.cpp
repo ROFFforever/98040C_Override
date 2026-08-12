@@ -6,6 +6,10 @@
 #include "Commands/ArcadeDriveCommand.h"
 #include "Commands/IntakeTeleopCommand.h"
 #include "Subsystems/intake.h"
+#include "Controllers/PID.hpp"
+#include "Controllers/velocity_feed_forward.hpp"
+#include "util/mathUtils.h"
+#include <cfenv>
 
 pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-11, -12});
@@ -14,10 +18,18 @@ pros::Imu imu(10);                  // port 7
 
 
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
-pros::Rotation vertRotation(1);           
-odom_wheel vert(&vertRotation, 0, 2.0);
-odom_wheel horiz(nullptr, 0, 0);
-drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 450, &vert, &horiz); // 450 = wheel's actual output rpm after gearing
+pros::Rotation vertRotation(-16); //reverse angle   
+pros::Rotation horizRotation(15); //reverse angle        
+odom_wheel vert(&vertRotation, 1.25, 2.0);
+odom_wheel horiz(&horizRotation, 0.75, 2.0);
+
+//controllers
+PID residual_lateral_PID(0,0,0,0,0,0);
+PID angular_pid(0,0,0,0,0,0);
+velocity_feed_forward ff(0,0,0);
+
+
+drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
 intake intake_motors({&intake_motor_1}, false);
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
 IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
@@ -30,6 +42,9 @@ IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER
  */
 void initialize() {
 	pros::lcd::initialize();
+	
+	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
+	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
 	pros::lcd::set_text(1, "Hello PROS User!");
 
 	// Blocks ~2s while the IMU's gyro/accel finish their startup calibration,
@@ -89,10 +104,11 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
-	Timer time(10);
-	chassis.ticks = &time;
+	chassis.setPose(0,0,0);
 	while(true){
 		CommandScheduler::run();
-		pros::delay(16); //60hz
+		// leftMotors.move_voltage(400);
+		// rightMotors.move_voltage(400);
+		pros::delay(10); //60hz
 	}
 }

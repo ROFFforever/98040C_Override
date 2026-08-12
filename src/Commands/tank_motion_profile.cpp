@@ -1,7 +1,6 @@
 #include "Commands/tank_motion_profile.hpp"
 #include "Controllers/trapezoid_profile.hpp"
 #include "pros/rtos.hpp"
-#include "rtos.h"
 #include "util/mathUtils.h"
 
 void tank_motion_profile::initialize() {

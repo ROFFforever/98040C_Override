@@ -84,11 +84,15 @@ int plugga = 0;
 void drivetrain::periodic(){
     if(!update_pos()){
         TELEMETRY.debug("MISSING SENSOR");
-    } 
+    }
+    // JSON pose line for 07_compare_odometry.py (LESSONS.md Lesson 7) - throttled
+    // to ~33Hz (every 3rd tick); sending every tick (100Hz) overflows the V5
+    // user serial link and corrupts the log (see "Could not decode bytes" warnings).
     plugga++;
-    if(plugga == 5){
-    TELEMETRY.debug(std::format("X: {}, Y: {}, Theta: {}", pos.x, pos.y, radToDeg(pos.theta))); 
-    plugga=0;
+    if(plugga >= 3){
+        TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
+            pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
+        plugga = 0;
     }
 }
 
@@ -155,6 +159,13 @@ bool drivetrain::update_pos(){
     pos.y += global_delta.y;
 
     return true;
+}
+
+void drivetrain::setPose(double x, double y, double theta){
+    pos.x=x;
+    pos.y=y;
+    pos.theta=theta;
+    imu->set_rotation(-radToDeg(theta));
 }
 
 void drivetrain::arcade(int throttle, int turn){
