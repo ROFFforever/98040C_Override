@@ -27,6 +27,9 @@ public:
     static constexpr int AUTO_HEADING = 100;
 
     static constexpr int CURRENT_VEL = 1023;
+
+    static constexpr int ANGULAR_TUNING = 1122;
+    static constexpr int LATERAL_TUNING = 1243;
 };
 
 struct MotionParams{

@@ -85,9 +85,7 @@ void drivetrain::periodic(){
     if(!update_pos()){
         TELEMETRY.debug("MISSING SENSOR");
     }
-    // JSON pose line for 07_compare_odometry.py (LESSONS.md Lesson 7) - throttled
-    // to ~33Hz (every 3rd tick); sending every tick (100Hz) overflows the V5
-    // user serial link and corrupts the log (see "Could not decode bytes" warnings).
+    
     plugga++;
     if(plugga >= 3){
         TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",

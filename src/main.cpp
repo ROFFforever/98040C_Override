@@ -20,8 +20,8 @@ pros::Imu imu(10);                  // port 7
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
 pros::Rotation vertRotation(-16); //reverse angle   
 pros::Rotation horizRotation(15); //reverse angle        
-odom_wheel vert(&vertRotation, 1.25, 2.0);
-odom_wheel horiz(&horizRotation, 0.75, 2.0);
+odom_wheel vert(&vertRotation, 1.25, 2.125);
+odom_wheel horiz(&horizRotation, 0.75, 2.125);
 
 //controllers
 PID residual_lateral_PID(0,0,0,0,0,0);
@@ -104,11 +104,11 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
-	chassis.setPose(0,0,0);
+	chassis.setPose(0,0,0); //TODO remove this later. Temporarily here for testing.
 	while(true){
 		CommandScheduler::run();
 		// leftMotors.move_voltage(400);
 		// rightMotors.move_voltage(400);
-		pros::delay(10); //60hz
+		pros::delay(10); //100hz
 	}
 }

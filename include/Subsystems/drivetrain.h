@@ -85,6 +85,7 @@ class drivetrain : public Subsystem{
     //these are here for backup tracking in case dead wheel isn't available
     double getLeftDistance();  // total inches the left side has rolled since motor init/tare
     double getRightDistance(); // total inches the right side has rolled since motor init/tare
+    int get_voltage_all();
 
     void arcade(int throttle, int turn);
 };
