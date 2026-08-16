@@ -10,6 +10,9 @@
 #include "Controllers/velocity_feed_forward.hpp"
 #include "util/mathUtils.h"
 #include <cfenv>
+#include "Commands/DriveCharacterize.h"
+#include "Telemetry/telemetry.h"
+#include "Commands/FeedForwardTest.h"
 
 pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-11, -12});
@@ -26,7 +29,10 @@ odom_wheel horiz(&horizRotation, 0.75, 2.125);
 //controllers
 PID residual_lateral_PID(0,0,0,0,0,0);
 PID angular_pid(0,0,0,0,0,0);
-velocity_feed_forward ff(0,0,0);
+
+velocity_feed_forward ff(0.14954251997144965 * 1000,  // kV
+                          0.008822947449026463 * 1000, // kA
+                          0.5831772567351025 * 1000);  // kS
 
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
@@ -104,9 +110,19 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
-	chassis.setPose(0,0,0); //TODO remove this later. Temporarily here for testing.
+	// chassis.setPose(0,0,0); //TODO remove this later. Temporarily here for testing.
+
+	//for obtaining KAV lateral vals
+	// DriveCharacterize kav(&chassis,2);
+	// CommandScheduler::schedule(&kav);
+
+	FeedForwardTest ff_test(&chassis);
+	CommandScheduler::schedule(&ff_test);
+
 	while(true){
 		CommandScheduler::run();
+		
+		//TELEMETRY.debug(std::format("{{\"v\": {}", chassis.get_lateral_velocity()));
 		// leftMotors.move_voltage(400);
 		// rightMotors.move_voltage(400);
 		pros::delay(10); //100hz

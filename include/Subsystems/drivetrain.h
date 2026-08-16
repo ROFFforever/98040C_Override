@@ -40,6 +40,12 @@ class drivetrain : public Subsystem{
         double prevLeftDist = 0;
         double prevRightDist = 0;
 
+        // separate from vert_odom's own prev_val/current_val (used by update_pos()'s delta
+        // tracking) so get_lateral_velocity() doesn't consume the same delta odometry needs
+        double prevVelDist = 0;
+        uint32_t prevVelTime = 0;
+        double lastVel = 0; // held steady between real sensor refreshes, instead of reporting 0 on stale-reading ticks
+
         double dummy_var;
   
 
@@ -85,7 +91,7 @@ class drivetrain : public Subsystem{
     //these are here for backup tracking in case dead wheel isn't available
     double getLeftDistance();  // total inches the left side has rolled since motor init/tare
     double getRightDistance(); // total inches the right side has rolled since motor init/tare
-    int get_voltage_all();
+    int get_voltage_all(); // average voltage (mV) across all left+right motors
 
     void arcade(int throttle, int turn);
 };

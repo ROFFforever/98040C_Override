@@ -86,12 +86,12 @@ void drivetrain::periodic(){
         TELEMETRY.debug("MISSING SENSOR");
     }
     
-    plugga++;
-    if(plugga >= 3){
-        TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
-            pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
-        plugga = 0;
-    }
+    // plugga++;
+    // if(plugga >= 3){
+    //     TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
+    //         pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
+    //     plugga = 0;
+    // }
 }
 
 void drivetrain::setPctLeft(int pct){
@@ -174,7 +174,27 @@ void drivetrain::arcade(int throttle, int turn){
     setPctRight(rightPct);
 }
 double drivetrain::get_lateral_velocity(){
-   return (this->vert_odom->wheel_diameter * degToRad(this->vert_odom->odom_sensor->get_velocity() / 100.0)) / 2.0; //return in inches/sec
+    double dist = vert_odom->get_dist();
+    uint32_t now = pros::millis();
+
+    if(dist == prevVelDist){
+        return lastVel;
+    }
+
+    double dt = (now - prevVelTime) / 1000.0;
+    double vel = (prevVelTime == 0 || dt <= 0) ? 0 : (dist - prevVelDist) / dt;
+    prevVelDist = dist;
+    prevVelTime = now;
+    lastVel = vel;
+    return vel; //inches/sec
+}
+int drivetrain::get_voltage_all(){
+    std::vector<int32_t> leftVoltages = leftMotors->get_voltage_all();
+    std::vector<int32_t> rightVoltages = rightMotors->get_voltage_all();
+    double sum = 0;
+    for(int32_t v : leftVoltages) sum += v;
+    for(int32_t v : rightVoltages) sum += v;
+    return (int)(sum / (leftVoltages.size() + rightVoltages.size())); //millivolts
 }
 Pose drivetrain::gpos(){
     return this->pos;

@@ -11,6 +11,7 @@ class DriveCharacterize : public Command{
     Timer* time;
     uint32_t lastStageEnd = 0;
     Timer* break_time; //time to put robot back in between stages
+    int hertz_controller = 0;
 
 
     public:
@@ -21,6 +22,7 @@ class DriveCharacterize : public Command{
     void end(bool interrupted) override;
     void send_all_data();
     void gather_tick_data();
+    void compute_and_send_kav(); // fits V = kS*sign(v) + kV*v + kA*a over vals, sends only the 3 result coefficients
 
     //this is power split:
     // 50%  for 500ms   -- cruise (mid speed)
