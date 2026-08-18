@@ -20,7 +20,8 @@ public:
 
     double totalTime() const;
 
-    double getDist(); //returns end dist
+    //returns end dist
+    double getDist(); 
 
 private:
     Constraints constraints;

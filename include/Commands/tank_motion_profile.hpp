@@ -8,24 +8,27 @@
 class tank_motion_profile : public Command{
     private:
        
-        double x,y,theta,exit_range;
+        double x,y,settle_range;
         int max_time;
         TrapezoidProfile* motion; //the actual motion to be ran
         drivetrain* drive;
         MotionParams constraints;
+        bool profile_over = false; //whether the profile is over(then hand it off to PID)
+        int exit_consecutive_counter=0;
         
         //start_time stored in millis to make life easier
         double start_time;
-        double turn_time;
 
-        //so we can accumulate time turning
-        int last_time_turned;
+        //start pose and unit direction (start->goal), fixed for the whole move -
+        //lets us project live position onto the intended line instead of using
+        //remaining distance-to-goal, which isn't monotonic once you overshoot
+        double startX, startY, dirX, dirY;
 
         //check whether motion is finished
         bool finished=false;
 
     public:
-        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::AUTO_TIME,double exit_range = Units::CLOSE, double theta=Units::AUTO_HEADING) : drive(drive), x(x), y(y), constraints(constraints), theta(theta), max_time(max_time),exit_range(exit_range) {}
+        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO);
         void initialize() override;
         void execute() override;
         bool isFinished() override;

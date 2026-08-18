@@ -100,8 +100,7 @@ void competition_initialize() {}
  * from where it left off.
  */
 void autonomous() {
-	chassis.rotate(12)->schedule();
-
+	chassis.rotate(80)->schedule();
 }
 
 /**

@@ -4,6 +4,7 @@
 #include "Controllers/velocity_feed_forward.hpp"
 #include "Telemetry/telemetry.h"
 #include "util/mathUtils.h"
+#include "Commands/tank_motion_profile.hpp"
 #include "Commands/Rotate.h"
 
 double odom_wheel::get_dist_delta(){
@@ -129,8 +130,8 @@ bool drivetrain::update_pos(){
     //find change in positional values
     //vert wheel rolls along the drive direction -> robot-forward = local +x
     //horiz wheel rolls sideways -> robot-left = local +y
-    double delta_forward = vert_odom->odom_sensor != nullptr ? vert_odom->get_dist_delta() : missing_sensors++;
-    double delta_left = horiz_odom->odom_sensor != nullptr ? horiz_odom->get_dist_delta() : missing_sensors++;
+    double delta_forward = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr) ? vert_odom->get_dist_delta() : missing_sensors++;
+    double delta_left = (horiz_odom != nullptr && horiz_odom->odom_sensor != nullptr) ? horiz_odom->get_dist_delta() : missing_sensors++;
     double delta_theta = angleDifference(rawTheta, pos.theta);
 
     //don't track cuz we don't have the sensors to do so
@@ -243,8 +244,32 @@ MotionParams drivetrain::get_angular_params(Speed speed){
     }
 }
 
+MotionParams drivetrain::get_lateral_params(Speed speed){
+    switch(speed){
+        case Speed::SLOW:  return lateral_slow;
+        case Speed::FAST:  return lateral_fast;
+        default:           return lateral_normal;   // covers Speed::NORMAL
+    }
+}
 
 Rotate* drivetrain::rotate(double target_ang, Speed speed, double max_time, double settle_range){
     MotionParams p = get_angular_params(speed);
     return new Rotate(target_ang, this, p, max_time, settle_range);
+}
+
+tank_motion_profile* drivetrain::Tank_motion_profile(double x, double y, Speed speed, double max_time, double settle_range){
+    MotionParams p = get_lateral_params(speed);
+    return new tank_motion_profile(this, x, y, p, max_time, settle_range);
+}
+
+
+Sequence* drivetrain::moveToPoint(double x, double y, Speed speed, double max_time, double settle_range){
+    
+    //Create the two commands
+    double initial_target_heading = radToDeg(angleDifference(gpos(), x, y)); // Recalculate to stay pointed at target
+    Command* rotate_command = rotate(initial_target_heading);
+    Command* tank_motion_profile_command = Tank_motion_profile(x, y, speed, max_time, settle_range);
+
+    //Create a sequence and return it
+    return new Sequence({rotate_command, tank_motion_profile_command});
 }

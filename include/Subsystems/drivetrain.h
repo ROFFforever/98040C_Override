@@ -9,8 +9,10 @@
 #include "util/pose.h"
 #include "Controllers/PID.hpp"
 #include "Controllers/velocity_feed_forward.hpp"
+#include "CommandScheduler/Sequence.h"
 
 class Rotate; //Need to have in order to build factory methods
+class tank_motion_profile;
 
 enum class Speed { SLOW, NORMAL, FAST }; //these are motion params(contains: initial velocity, end velocity, acceleration, and cruise velocity)
 
@@ -121,8 +123,17 @@ class drivetrain : public Subsystem{
 
     // declare a function that takes a Speed
     MotionParams get_angular_params(Speed speed);
+    MotionParams get_lateral_params(Speed speed);
 
     //Factory method for rotating the chassis
     Rotate* rotate(double target_ang, Speed speed = Speed::NORMAL,
                     double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+
+    tank_motion_profile* Tank_motion_profile(double x, double y, Speed speed = Speed::NORMAL, double max_time=Units::AUTO_TIME, double settle_range = Units::AUTO);
+
+    //factory method that turns to the point and then moves toward it. Both using a trapazoidal motion profile
+    //Uses a sequence under the hood
+    Sequence* moveToPoint(double x, double y, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+
+
 };
