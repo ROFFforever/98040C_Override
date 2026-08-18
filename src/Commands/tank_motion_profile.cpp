@@ -29,10 +29,10 @@ void tank_motion_profile::initialize() {
                         {dist, constraints.final_vel, 0},
                         {0, constraints.init_vel, 0});
 
-  drive->angular_pid->set_target(angleDifference(drive->gpos(), x, y));
+  drive->residual_angular_pid->set_target(angleDifference(drive->gpos(), x, y));
 }
 
-std::vector<Subsystem *> tank_motion_profile::getRequirements() {
+std::vector<Subsystem*> tank_motion_profile::getRequirements() {
   return {drive};
 }
 
@@ -48,8 +48,8 @@ void tank_motion_profile::execute() {
     last_time_turned = pros::millis();
 
     //turn robot
-    drive->angular_pid->set_target(targetHeading);
-    int turn_mV = drive->angular_pid->update(heading);
+    drive->residual_angular_pid->set_target(targetHeading);
+    int turn_mV = drive->residual_angular_pid->update(heading);
     drive->setVoltageLeft(-turn_mV);
     drive->setVoltageRight(turn_mV);
 
@@ -70,11 +70,11 @@ void tank_motion_profile::execute() {
       //set the KAV model
       double v = state.velocity;
       double a = state.acceleration;
-      int mV = drive->ff->update(v, a);
+      int mV = drive->ff_lateral->update(v, a);
 
       //add in lateral residual PID and angular PID to correct heading
-      drive->angular_pid->set_target(targetHeading);
-      int turn_mv = lateral_error < 2.5 ? 0 : drive->angular_pid->update(heading);
+      drive->residual_angular_pid->set_target(targetHeading);
+      int turn_mv = lateral_error < 2.5 ? 0 : drive->residual_angular_pid->update(heading);
       int residual = drive->residual_PID_lateral->update(curr_pos);
 
       //apply voltages

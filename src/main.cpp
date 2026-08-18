@@ -27,16 +27,20 @@ odom_wheel vert(&vertRotation, 1.25, 2.125);
 odom_wheel horiz(&horizRotation, 0.75, 2.125);
 
 //controllers
-PID residual_lateral_PID(0,0,0,0,0,0);
-PID angular_pid(0,0,0,0,0,0);
+PID residual_lateral_PID(0,0,0,0,0);
+PID angular_pid(0,0,0,0,0);
 
-velocity_feed_forward ff(0.14954251997144965 * 1000,  // kV
+velocity_feed_forward ff_lateral(0.14954251997144965 * 1000,  // kV
                           0.008822947449026463 * 1000, // kA
                           0.5831772567351025 * 1000);  // kS
 
+velocity_feed_forward ff_angular(0,  // kV
+0, // kA
+0);  // kS
 
-drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
-intake intake_motors({&intake_motor_1}, false);
+
+drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
+intake intake_motors({{&intake_motor_1, false}});
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
 IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
 

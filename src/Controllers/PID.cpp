@@ -16,7 +16,7 @@ double PID::update(double input){
     double derivative = error-prev_error;
     prev_error = error;
 
-    return kP * error + kI * integral + kD * derivative + kS;
+    return kP * error + kI * integral + kD * derivative;
 }
 
 void PID::reset(){

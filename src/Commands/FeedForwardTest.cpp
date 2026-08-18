@@ -11,8 +11,8 @@ namespace {
     };
 
     const std::vector<VelocityStage> STAGES = {
-        {20, 1500},
-        {40, 1500},
+        {20, 800},
+        {80, 600},
         {-20, 1500},
         {-40, 1500},
         {0, 500},
@@ -39,7 +39,7 @@ void FeedForwardTest::movement_stage(){
         uint32_t stageEnd = stageStart + stage.durationMs;
         if(elapsed < stageEnd){
             currentTargetVelocity = stage.targetVelocity;
-            double voltage_mV = drive->ff->update(stage.targetVelocity, 0);
+            double voltage_mV = drive->ff_lateral->update(stage.targetVelocity, 0);
             drive->setVoltageLeft((int)voltage_mV);
             drive->setVoltageRight((int)voltage_mV);
             return;

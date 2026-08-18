@@ -27,10 +27,10 @@ drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMoto
     this->imu = imu;
     this->wheel_diamter = wheel_diameter;
     this->wheelRPM = wheelRPM;
-    this-> angular_pid = angular_pid;
+    this-> residual_angular_pid = angular_pid;
 }
 
-drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff,PID* residual_PID_lateral) {
+drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral) {
     this->leftMotors = leftMotors;
     this->rightMotors = rightMotors;
     this->imu = imu;
@@ -38,8 +38,9 @@ drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMoto
     this->wheelRPM = wheelRPM;
     this->vert_odom = vert_odom;
     this->horiz_odom = horiz_odom;
-    this-> angular_pid = angular_pid;
-    this->ff=ff;
+    this-> residual_angular_pid = angular_pid;
+    this->ff_lateral=ff_lateral;
+    this->ff_angular=ff_angular;
     this->residual_PID_lateral=residual_PID_lateral;
 }
 
@@ -82,10 +83,12 @@ double drivetrain::getAngle(){
 }
 int plugga = 0;
 void drivetrain::periodic(){
-    if(!update_pos()){
+    if(update_pos()){
+        update_velocities();
+    } else {
         TELEMETRY.debug("MISSING SENSOR");
     }
-    
+
     // plugga++;
     // if(plugga >= 3){
     //     TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
@@ -159,6 +162,29 @@ bool drivetrain::update_pos(){
     return true;
 }
 
+void drivetrain::update_velocities(){
+    uint32_t now = pros::millis();
+
+    if(prevVelTime == 0){
+        lastVel = 0;
+    }else{
+        double dt = (now - prevVelTime) / 1000.0;
+        if(dt > 0) lastVel = std::hypot(pos.x - prevVelX, pos.y - prevVelY) / dt;
+    }
+    prevVelX = pos.x;
+    prevVelY = pos.y;
+    prevVelTime = now;
+
+    if(prevAngularVelTime == 0){
+        lastAngularVel = 0;
+    }else{
+        double angDt = (now - prevAngularVelTime) / 1000.0;
+        if(angDt > 0) lastAngularVel = (pos.theta - prevAngularPos) / angDt;
+    }
+    prevAngularPos = pos.theta;
+    prevAngularVelTime = now;
+}
+
 void drivetrain::setPose(double x, double y, double theta){
     pos.x=x;
     pos.y=y;
@@ -174,19 +200,7 @@ void drivetrain::arcade(int throttle, int turn){
     setPctRight(rightPct);
 }
 double drivetrain::get_lateral_velocity(){
-    double dist = vert_odom->get_dist();
-    uint32_t now = pros::millis();
-
-    if(dist == prevVelDist){
-        return lastVel;
-    }
-
-    double dt = (now - prevVelTime) / 1000.0;
-    double vel = (prevVelTime == 0 || dt <= 0) ? 0 : (dist - prevVelDist) / dt;
-    prevVelDist = dist;
-    prevVelTime = now;
-    lastVel = vel;
-    return vel; //inches/sec
+    return lastVel; //inches/sec
 }
 int drivetrain::get_voltage_all(){
     std::vector<int32_t> leftVoltages = leftMotors->get_voltage_all();
@@ -196,6 +210,26 @@ int drivetrain::get_voltage_all(){
     for(int32_t v : rightVoltages) sum += v;
     return (int)(sum / (leftVoltages.size() + rightVoltages.size())); //millivolts
 }
+
+double drivetrain::get_angular_velocity(){
+    return lastAngularVel; //rad/sec
+}
+
+int drivetrain::get_angular_voltage(){
+    std::vector<int32_t> leftVoltages = leftMotors->get_voltage_all();
+    std::vector<int32_t> rightVoltages = rightMotors->get_voltage_all();
+    double leftSum = 0, rightSum = 0;
+    for(int32_t v : leftVoltages) leftSum += v;
+    for(int32_t v : rightVoltages) rightSum += v;
+    double leftAvg = leftSum / leftVoltages.size();
+    double rightAvg = rightSum / rightVoltages.size();
+    return (int)((leftAvg - rightAvg) / 2.0); //millivolts
+}
 Pose drivetrain::gpos(){
     return this->pos;
+}
+
+void drivetrain::set(int mV){
+    leftMotors->move_voltage(mV);
+    rightMotors->move_voltage(mV);
 }

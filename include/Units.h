@@ -15,7 +15,7 @@ public:
     static constexpr double RPM_360 = 360.0;
 
     //time not provided
-    static constexpr int TNOT_PROVIDED = -121; //when you want the motion to find out time itself(stop itself)
+    static constexpr int AUTO_TIME = -121; //when you want the motion to find out time itself(stop itself)
 
     //TODO TUNE THESE:
     //These are exit range constants for motions
@@ -30,6 +30,8 @@ public:
 
     static constexpr int ANGULAR_TUNING = 1122;
     static constexpr int LATERAL_TUNING = 1243;
+
+    static constexpr int AUTO = 1538931;
 };
 
 struct MotionParams{

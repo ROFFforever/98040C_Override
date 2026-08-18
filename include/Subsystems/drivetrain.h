@@ -37,16 +37,24 @@ class drivetrain : public Subsystem{
         float wheel_diamter; //in inches
         double wheelRPM; // actual output rpm of the wheel after external gearing, e.g. 450, 360
         // last tick's readings, so periodic() can diff against them to get distance moved since last tick
+
+
+
         double prevLeftDist = 0;
         double prevRightDist = 0;
 
-        // separate from vert_odom's own prev_val/current_val (used by update_pos()'s delta
-        // tracking) so get_lateral_velocity() doesn't consume the same delta odometry needs
-        double prevVelDist = 0;
+        double prevVelX = 0;
+        double prevVelY = 0;
         uint32_t prevVelTime = 0;
-        double lastVel = 0; // held steady between real sensor refreshes, instead of reporting 0 on stale-reading ticks
+        double lastVel = 0;
+
+        double prevAngularPos = 0;
+        uint32_t prevAngularVelTime = 0;
+        double lastAngularVel = 0;
 
         double dummy_var;
+
+        void update_velocities();
   
 
 
@@ -54,13 +62,18 @@ class drivetrain : public Subsystem{
     odom_wheel* vert_odom = nullptr; //direction of drive, nullptr if no dead wheel present
     odom_wheel* horiz_odom = nullptr;
     Timer* ticks;
-    velocity_feed_forward* ff;
-    PID* angular_pid;
+    velocity_feed_forward* ff_lateral;
+    velocity_feed_forward* ff_angular;
+    PID* residual_angular_pid;
     PID* residual_PID_lateral;
+
+    //used for end of loop residual PID "pushers"
+    int angular_kS;
+    int lateral_kS;
     //simple drivetrain without odom tracking(manually track with drive)
     drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, PID* angular_pid);
     //Drivetrain with basic odom, if don't have a dead wheel, set nullptr
-    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff, PID* residual_PID_lateral);
+    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral);
     
     void periodic() override; //put localization in here
     //-127/127
@@ -83,8 +96,12 @@ class drivetrain : public Subsystem{
 
     void setPctLeft(int percent);
     void setPctRight(int percent);
+    //set milli voltage of both sides of drivetrain
+    void set(int mV); 
+
 
     double get_lateral_velocity();
+    double get_angular_velocity(); // rad/sec, differentiated from getAngle() the same way as get_lateral_velocity()
     void setVoltageLeft(int millivolts);
     void setVoltageRight(int millivolts);
 
@@ -92,6 +109,7 @@ class drivetrain : public Subsystem{
     double getLeftDistance();  // total inches the left side has rolled since motor init/tare
     double getRightDistance(); // total inches the right side has rolled since motor init/tare
     int get_voltage_all(); // average voltage (mV) across all left+right motors
+    int get_angular_voltage(); // (left - right)/2 (mV) - isolates rotational voltage, matches +turn = +left/-right convention
 
     void arcade(int throttle, int turn);
 };

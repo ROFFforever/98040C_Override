@@ -63,6 +63,10 @@ std::optional<TrapezoidProfile::State> TrapezoidProfile::calculate(double t) con
         current_state.acceleration = -constraints.accel;
     }
 
+    current_state.position *= direction;
+    current_state.velocity *= direction;
+    current_state.acceleration *= direction;
+
     return current_state;
 }
 
@@ -71,7 +75,7 @@ double TrapezoidProfile::totalTime() const {
 }
 
 double TrapezoidProfile::getDist(){
-    return goal.position;
+    return goal.position * direction;
 }
 
 TrapezoidProfile::State TrapezoidProfile::direct(State in) const {

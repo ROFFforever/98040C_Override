@@ -25,7 +25,7 @@ class tank_motion_profile : public Command{
         bool finished=false;
 
     public:
-        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::TNOT_PROVIDED,double exit_range = Units::CLOSE, double theta=Units::AUTO_HEADING) : drive(drive), x(x), y(y), constraints(constraints), theta(theta), max_time(max_time),exit_range(exit_range) {}
+        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::AUTO_TIME,double exit_range = Units::CLOSE, double theta=Units::AUTO_HEADING) : drive(drive), x(x), y(y), constraints(constraints), theta(theta), max_time(max_time),exit_range(exit_range) {}
         void initialize() override;
         void execute() override;
         bool isFinished() override;
