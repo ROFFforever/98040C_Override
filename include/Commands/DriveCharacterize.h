@@ -25,12 +25,17 @@ class DriveCharacterize : public Command{
     void compute_and_send_kav(); // fits V = kS*sign(v) + kV*v + kA*a over vals, sends only the 3 result coefficients
 
     //this is power split:
-    // 50%  for 500ms   -- cruise (mid speed)
-    // 70%  for 600ms   -- cruise (high speed)
-    // 20%  for 600ms   -- cruise (low speed)
+    // 20%  for 500ms   -- cruise (low speed)
+    // 35%  for 500ms   -- cruise (low-mid speed)
+    // 50%  for 600ms   -- cruise (mid speed)
+    // 65%  for 700ms   -- cruise (mid-high speed)
+    // 85%  for 900ms   -- cruise (near-max speed)
     //  0%  for 300ms   -- full stop
-    // -70% for 800ms   -- cruise (high speed, reverse)
-    // -20% for 800ms   -- cruise (low speed, reverse)
+    // -20% for 500ms   -- cruise (low speed, reverse)
+    // -35% for 500ms   -- cruise (low-mid speed, reverse)
+    // -50% for 600ms   -- cruise (mid speed, reverse)
+    // -65% for 700ms   -- cruise (mid-high speed, reverse)
+    // -85% for 900ms   -- cruise (near-max speed, reverse)
     //  0%  for 300ms   -- full stop
     void movement_stage(); //determine how much power the drivetrain should be getting right now. 
 

@@ -13,6 +13,7 @@
 #include "Commands/DriveCharacterize.h"
 #include "Telemetry/telemetry.h"
 #include "Commands/FeedForwardTest.h"
+#include "Commands/Rotate.h"
 
 pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-11, -12});
@@ -98,7 +99,10 @@ void competition_initialize() {}
  * will be stopped. Re-enabling the robot will restart the task, not re-start it
  * from where it left off.
  */
-void autonomous() {}
+void autonomous() {
+	chassis.rotate(12)->schedule();
+
+}
 
 /**
  * Runs the operator control code. This function will be started in its own task

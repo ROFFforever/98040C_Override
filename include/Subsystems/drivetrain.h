@@ -10,6 +10,10 @@
 #include "Controllers/PID.hpp"
 #include "Controllers/velocity_feed_forward.hpp"
 
+class Rotate; //Need to have in order to build factory methods
+
+enum class Speed { SLOW, NORMAL, FAST }; //these are motion params(contains: initial velocity, end velocity, acceleration, and cruise velocity)
+
 class odom_wheel{
     public:
     double get_dist_delta();
@@ -36,10 +40,12 @@ class drivetrain : public Subsystem{
         Pose pos; //robot pos, theta stored in radians
         float wheel_diamter; //in inches
         double wheelRPM; // actual output rpm of the wheel after external gearing, e.g. 450, 360
+
+        //motion params for angular and lateral trapazoidal movements
+        MotionParams angular_slow, angular_normal, angular_fast;
+        MotionParams lateral_slow, lateral_normal, lateral_fast;
+
         // last tick's readings, so periodic() can diff against them to get distance moved since last tick
-
-
-
         double prevLeftDist = 0;
         double prevRightDist = 0;
 
@@ -112,4 +118,11 @@ class drivetrain : public Subsystem{
     int get_angular_voltage(); // (left - right)/2 (mV) - isolates rotational voltage, matches +turn = +left/-right convention
 
     void arcade(int throttle, int turn);
+
+    // declare a function that takes a Speed
+    MotionParams get_angular_params(Speed speed);
+
+    //Factory method for rotating the chassis
+    Rotate* rotate(double target_ang, Speed speed = Speed::NORMAL,
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
 };

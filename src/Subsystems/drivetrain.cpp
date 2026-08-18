@@ -4,6 +4,7 @@
 #include "Controllers/velocity_feed_forward.hpp"
 #include "Telemetry/telemetry.h"
 #include "util/mathUtils.h"
+#include "Commands/Rotate.h"
 
 double odom_wheel::get_dist_delta(){
     if(odom_sensor != nullptr){ 
@@ -232,4 +233,18 @@ Pose drivetrain::gpos(){
 void drivetrain::set(int mV){
     leftMotors->move_voltage(mV);
     rightMotors->move_voltage(mV);
+}
+
+MotionParams drivetrain::get_angular_params(Speed speed){
+    switch(speed){
+        case Speed::SLOW:  return angular_slow;
+        case Speed::FAST:  return angular_fast;
+        default:           return angular_normal;   // covers Speed::NORMAL
+    }
+}
+
+
+Rotate* drivetrain::rotate(double target_ang, Speed speed, double max_time, double settle_range){
+    MotionParams p = get_angular_params(speed);
+    return new Rotate(target_ang, this, p, max_time, settle_range);
 }

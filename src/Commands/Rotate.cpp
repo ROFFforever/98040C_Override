@@ -7,6 +7,7 @@ Rotate::Rotate(double target_ang, drivetrain* drive, MotionParams params, double
     this->target_ang=degToRad(target_ang);
     this->params=params;
     this->drive=drive;
+    this->max_time = max_time == Units::AUTO_TIME ? 1000 : max_time; //default to one second if no other time is given. One second should be more than enough(safe is like 790 ms, so plenty of headroom)
     this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
 };
 
