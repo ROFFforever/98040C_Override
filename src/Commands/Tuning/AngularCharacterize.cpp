@@ -1,4 +1,4 @@
-#include "Commands/AngularCharacterize.h"
+#include "Commands/Tuning/AngularCharacterize.h"
 #include "Telemetry/telemetry.h"
 #include "pros/rtos.hpp"
 #include <format>
@@ -10,17 +10,30 @@ namespace {
         double power;
         uint32_t durationMs;
         bool breakBefore;
+        uint32_t breakDurationMs = 1000;
     };
 
     const std::vector<PowerStage> ANGULAR_STAGES = {
-        {0.5, 500, true},
-        {0.7, 600, false},
-        {0.2, 600, false},
-        {0.0, 300, false},
-        {-0.7, 800, true},
-        {-0.2, 800, false},
-        {0.0, 300, false},
+        {0.2, 500, true},  {0.35, 500, false}, {0.5, 600, false},  {0.65, 700, false},
+        {0.85, 900, false}, {0.0, 300, false},
+        {-0.2, 500, true, 2000}, {-0.35, 500, false}, {-0.5, 600, false}, {-0.65, 700, false},
+        {-0.85, 900, false}, {0.0, 300, false},
     };
+
+    const std::vector<PowerStage> ANGULAR_ACCEL_STAGES = {
+        {0.6, 300, true}, {0.0, 300, false},
+        {0.9, 300, true}, {0.0, 300, false},
+        {0.9, 300, true}, {0.0, 300, false},
+        {0.9, 300, true}, {0.0, 300, false},
+        {-0.6, 300, true, 2000}, {0.0, 300, false},
+        {-0.9, 300, true}, {0.0, 300, false},
+        {-0.9, 300, true}, {0.0, 300, false},
+        {-0.9, 300, true}, {0.0, 300, false},
+    };
+
+    const std::vector<PowerStage>& activeStages(CharacterizeMode mode){
+        return mode == CharacterizeMode::QUASISTATIC ? ANGULAR_STAGES : ANGULAR_ACCEL_STAGES;
+    }
 
     uint32_t totalStageDuration(const std::vector<PowerStage>& stages){
         uint32_t total = 0;
@@ -36,7 +49,7 @@ namespace {
 }
 
 void AngularCharacterize::initialize(){
-    time = new Timer(totalStageDuration(ANGULAR_STAGES));
+    time = new Timer(totalStageDuration(activeStages(mode)));
     break_time = new Timer(1000);
     break_time->pause();
 }
@@ -44,15 +57,18 @@ void AngularCharacterize::initialize(){
 void AngularCharacterize::movement_stage(){
     uint32_t elapsed = time->getTimePassed();
     uint32_t stageStart = 0;
+    const std::vector<PowerStage>& stages = activeStages(mode);
 
-    for(const PowerStage& stage : ANGULAR_STAGES){
+    for(const PowerStage& stage : stages){
         uint32_t stageEnd = stageStart + stage.durationMs;
         if(elapsed < stageEnd){
             if(lastStageEnd != stageEnd && stage.breakBefore){
                 drive->setPctLeft(0);
                 drive->setPctRight(0);
+                break_time->set(stage.breakDurationMs);
                 break_time->resume();
                 time->pause();
+                ticksSinceBreak = 0;
             }else{
                 drive->setPctLeft((int)(stage.power * 127));
                 drive->setPctRight((int)(-stage.power * 127));
@@ -93,12 +109,13 @@ void AngularCharacterize::execute(){
 void AngularCharacterize::gather_tick_data(){
     double angularVelocity = drive->get_angular_velocity();
     constexpr size_t ACCEL_WINDOW_TICKS = 5;
-    double angularAcceleration = vals.size() < ACCEL_WINDOW_TICKS
+    double angularAcceleration = ticksSinceBreak < ACCEL_WINDOW_TICKS
                                 ? 0
                                 : (angularVelocity - vals[vals.size() - ACCEL_WINDOW_TICKS][0]) *
                                       (100.0 / ACCEL_WINDOW_TICKS);
     double angularVoltage = drive->get_angular_voltage();
     vals.push_back({angularVelocity, angularAcceleration, angularVoltage});
+    ticksSinceBreak++;
 }
 
 void AngularCharacterize::end(bool interrupted){
@@ -108,42 +125,62 @@ void AngularCharacterize::end(bool interrupted){
 }
 
 void AngularCharacterize::compute_and_send_kav(){
-    double A[3][3] = {{0,0,0},{0,0,0},{0,0,0}};
-    double b[3] = {0,0,0};
+    double kS, kV, kA;
 
-    for(const std::array<double,3>& row : vals){
-        double w = row[0];
-        double alpha = row[1];
-        double volt = row[2] / 1000.0; // millivolts -> volts
-        double x[3] = {sgn(w), w, alpha};
+    if(mode == CharacterizeMode::QUASISTATIC){
+        double A[3][3] = {{0,0,0},{0,0,0},{0,0,0}};
+        double b[3] = {0,0,0};
 
-        for(int r=0;r<3;r++){
-            for(int c=0;c<3;c++) A[r][c] += x[r]*x[c];
-            b[r] += x[r]*volt;
+        for(const std::array<double,3>& row : vals){
+            double w = row[0];
+            double alpha = row[1];
+            double volt = row[2] / 1000.0; // millivolts -> volts
+            double x[3] = {sgn(w), w, alpha};
+
+            for(int r=0;r<3;r++){
+                for(int c=0;c<3;c++) A[r][c] += x[r]*x[c];
+                b[r] += x[r]*volt;
+            }
         }
-    }
 
-    auto det3 = [](double m[3][3]){
-        return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
-             - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
-             + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
-    };
+        auto det3 = [](double m[3][3]){
+            return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+                 - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+                 + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+        };
 
-    double det = det3(A);
-    if(std::abs(det) < 1e-9){
-        TELEMETRY.debug("Angular KAV fit failed - not enough variety in the collected data (singular matrix)");
-        return;
-    }
+        double det = det3(A);
+        if(std::abs(det) < 1e-9){
+            TELEMETRY.debug("Angular KAV fit failed - not enough variety in the collected data (singular matrix)");
+            return;
+        }
 
-    double result[3];
-    for(int col=0; col<3; col++){
-        double M[3][3];
-        for(int r=0;r<3;r++)
-            for(int c=0;c<3;c++)
-                M[r][c] = (c==col) ? b[r] : A[r][c];
-        result[col] = det3(M) / det;
+        double result[3];
+        for(int col=0; col<3; col++){
+            double M[3][3];
+            for(int r=0;r<3;r++)
+                for(int c=0;c<3;c++)
+                    M[r][c] = (c==col) ? b[r] : A[r][c];
+            result[col] = det3(M) / det;
+        }
+        kS = result[0]; kV = result[1]; kA = result[2];
+    }else{
+        kS = knownKS;
+        kV = knownKV;
+
+        double sumAlphaResidual = 0, sumAlphaSq = 0;
+        for(const std::array<double,3>& row : vals){
+            double w = row[0], alpha = row[1], volt = row[2] / 1000.0;
+            double residual = volt - kS*sgn(w) - kV*w;
+            sumAlphaResidual += alpha * residual;
+            sumAlphaSq += alpha * alpha;
+        }
+        if(sumAlphaSq < 1e-9){
+            TELEMETRY.debug("Angular kA fit failed - not enough acceleration variety in the collected data");
+            return;
+        }
+        kA = sumAlphaResidual / sumAlphaSq;
     }
-    double kS = result[0], kV = result[1], kA = result[2];
 
     double meanVolt = 0;
     for(const std::array<double,3>& row : vals) meanVolt += row[2] / 1000.0;

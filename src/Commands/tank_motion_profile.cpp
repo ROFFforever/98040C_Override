@@ -57,6 +57,7 @@ void tank_motion_profile::execute() {
   //get current vars
   double heading = drive->gpos().theta;
   double targetHeading = angleDifference(drive->gpos(), x, y); // Recalculate to stay pointed at target
+  double headingError = angleDifference(targetHeading, heading);
   double curr_time = ((pros::millis() - start_time) / 1000.0);
   auto result = motion->calculate(curr_time);
 
@@ -75,7 +76,7 @@ void tank_motion_profile::execute() {
 
     //reset PID lateral
     drive->residual_PID_lateral->set_target(motion->getDist()); //just use actual target angle
-    drive->residual_angular_pid->set_target(targetHeading);
+    drive->residual_angular_pid->set_target(headingError);
 
     //remeber, ticks run at 100hz so maybe 8 verified ticks(0.08) is good enough
     if (fabs(lateral_error) <= settle_range) {
@@ -89,7 +90,7 @@ void tank_motion_profile::execute() {
       drive->set(0); //stop drivetrain
     } else {
       int mV = drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
-      int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(heading);
+      int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
       drive->setVoltageLeft(mV - turn_mv + sgn(mV) * drive->lateral_kS);
       drive->setVoltageRight(mV + turn_mv + sgn(mV) * drive->lateral_kS);
     }
@@ -99,7 +100,7 @@ void tank_motion_profile::execute() {
     //reset PID's and unwrap it
     TrapezoidProfile::State state = result.value(); // unwrap it
     drive->residual_PID_lateral->set_target(state.position); //set lateral PID
-    drive->residual_angular_pid->set_target(targetHeading);
+    drive->residual_angular_pid->set_target(headingError);
 
     //set the KAV model
     double v = state.velocity;
@@ -107,7 +108,7 @@ void tank_motion_profile::execute() {
     int mV = drive->ff_lateral->update(v, a);
 
     //add in lateral residual PID and angular PID to correct heading
-    int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(heading);
+    int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
     int residual = drive->residual_PID_lateral->update(curr_pos);
 
     //apply voltages

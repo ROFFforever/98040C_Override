@@ -167,15 +167,22 @@ bool drivetrain::update_pos(){
 void drivetrain::update_velocities(){
     uint32_t now = pros::millis();
 
-    if(prevVelTime == 0){
+    if(velHistCount < 3){
         lastVel = 0;
     }else{
-        double dt = (now - prevVelTime) / 1000.0;
-        if(dt > 0) lastVel = std::hypot(pos.x - prevVelX, pos.y - prevVelY) / dt;
+        double dt = (now - velHistTime[0]) / 1000.0;
+        if(dt > 0){
+            double dx = pos.x - velHistX[0];
+            double dy = pos.y - velHistY[0];
+            double speed = std::hypot(dx, dy) / dt;
+            double forwardComponent = dx * std::cos(pos.theta) + dy * std::sin(pos.theta);
+            lastVel = (forwardComponent < 0 ? -1.0 : 1.0) * speed;
+        }
     }
-    prevVelX = pos.x;
-    prevVelY = pos.y;
-    prevVelTime = now;
+    velHistX[0] = velHistX[1]; velHistX[1] = velHistX[2]; velHistX[2] = pos.x;
+    velHistY[0] = velHistY[1]; velHistY[1] = velHistY[2]; velHistY[2] = pos.y;
+    velHistTime[0] = velHistTime[1]; velHistTime[1] = velHistTime[2]; velHistTime[2] = now;
+    if(velHistCount < 3) velHistCount++;
 
     if(prevAngularVelTime == 0){
         lastAngularVel = 0;
@@ -249,6 +256,22 @@ MotionParams drivetrain::get_lateral_params(Speed speed){
         case Speed::SLOW:  return lateral_slow;
         case Speed::FAST:  return lateral_fast;
         default:           return lateral_normal;   // covers Speed::NORMAL
+    }
+}
+
+void drivetrain::set_speeds_lateral(Speed speed, MotionParams params){
+    switch(speed){
+        case Speed::SLOW:   lateral_slow = params;   break;
+        case Speed::FAST:   lateral_fast = params;   break;
+        default:            lateral_normal = params; break;   // covers Speed::NORMAL
+    }
+}
+
+void drivetrain::set_speeds_angular(Speed speed, MotionParams params){
+    switch(speed){
+        case Speed::SLOW:   angular_slow = params;   break;
+        case Speed::FAST:   angular_fast = params;   break;
+        default:            angular_normal = params; break;   // covers Speed::NORMAL
     }
 }
 

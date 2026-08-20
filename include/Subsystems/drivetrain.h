@@ -51,9 +51,10 @@ class drivetrain : public Subsystem{
         double prevLeftDist = 0;
         double prevRightDist = 0;
 
-        double prevVelX = 0;
-        double prevVelY = 0;
-        uint32_t prevVelTime = 0;
+        double velHistX[3] = {0, 0, 0};
+        double velHistY[3] = {0, 0, 0};
+        uint32_t velHistTime[3] = {0, 0, 0};
+        int velHistCount = 0;
         double lastVel = 0;
 
         double prevAngularPos = 0;
@@ -134,6 +135,7 @@ class drivetrain : public Subsystem{
     //factory method that turns to the point and then moves toward it. Both using a trapazoidal motion profile
     //Uses a sequence under the hood
     Sequence* moveToPoint(double x, double y, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
-
+    void set_speeds_lateral(Speed speed, MotionParams params);
+    void set_speeds_angular(Speed speed, MotionParams params);
 
 };

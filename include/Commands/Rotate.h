@@ -10,7 +10,9 @@ class Rotate : public Command{
     double target_ang;
     MotionParams params;
     double initial_ang;
+    double ang_error; //wrapped target, relative to initial_ang - shared by the mid-profile and settle phases
     double max_time;
+    bool auto_time;
     TrapezoidProfile* profile;
     bool finished=false;
     bool profile_over = false;

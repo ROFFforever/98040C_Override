@@ -1,13 +1,15 @@
 #include "Commands/Rotate.h"
 #include <vector>
 
-const double settle_range_config = degToRad(4.5); //should be a good balance of speed and accuracy
+const double settle_range_config = degToRad(1.5); //should be a good balance of speed and accuracy
+const double auto_time_buffer = 0.5; //extra time given past the profile's natural end, so settling isn't cut off
 
 Rotate::Rotate(double target_ang, drivetrain* drive, MotionParams params, double max_time, double settle_range){
     this->target_ang=degToRad(target_ang);
     this->params=params;
     this->drive=drive;
-    this->max_time = max_time == Units::AUTO_TIME ? 1.0 : max_time;
+    this->auto_time = (max_time == Units::AUTO_TIME);
+    this->max_time = auto_time ? 1.0 : max_time; //placeholder, resolved for real in initialize() once the profile exists
     this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
 };
 
@@ -20,8 +22,13 @@ void Rotate::initialize(){
 
     //create profile here instead of constructor
     initial_ang=drive->gpos().theta;
-    double ang_error = angleDifference(target_ang,initial_ang);
+    ang_error = angleDifference(target_ang,initial_ang);
     profile = new TrapezoidProfile({params.cruise_vel, params.accel}, {ang_error, params.final_vel,params.accel}, {0,drive->get_angular_velocity()});
+
+    if(auto_time){
+        max_time = profile->totalTime() + auto_time_buffer;
+    }
+
     start_time=pros::millis();
 }
 
@@ -46,7 +53,7 @@ void Rotate::execute(){
                 drive->residual_angular_pid->reset();
             }
 
-            drive->residual_angular_pid->set_target(target_ang); //just use actual target angle
+            drive->residual_angular_pid->set_target(ang_error); //wrapped target, relative to initial_ang - matches the mid-profile branch below
             //figure out settle angles now
             //remeber, ticks run at 100hz so maybe 8 verified ticks(0.08) is good enough
             if(fabs(angError) <= settle_range) exit_consecutive_counter++;
@@ -57,7 +64,8 @@ void Rotate::execute(){
                 finished=true;
                 drive->set(0); //stop drivetrain
             }else{
-                int mV = drive->residual_angular_pid->update(heading);
+                double angle_turned = heading - initial_ang;
+                int mV = drive->residual_angular_pid->update(angle_turned);
                 drive->setVoltageLeft(-mV-drive->angular_kS*sgn(mV));
                 drive->setVoltageRight(mV+drive->angular_kS*sgn(mV));
             }
@@ -74,7 +82,7 @@ void Rotate::execute(){
             int mV = drive->ff_angular->update(v, a);
 
             //obtain residual PID
-            double angle_turned = angleDifference(heading, initial_ang); // input: actual angle-turned so far
+            double angle_turned = heading - initial_ang; // input: actual angle-turned so far
             int residual_PID = drive->residual_angular_pid->update(angle_turned); // computes state.position - angle_turned internally
 
             //apply voltages
