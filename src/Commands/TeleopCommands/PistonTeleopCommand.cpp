@@ -1,4 +1,4 @@
-#include "Commands/PistonTeleopCommand.h"
+#include "Commands/TeleopCommands/PistonTeleopCommand.h"
 
 PistonTeleopCommand::PistonTeleopCommand(piston *piston_subsystem, pros::Controller *controller, pros::controller_digital_e_t toggle_bind)
     : piston_subsystem(piston_subsystem), controller(controller), toggle_bind(toggle_bind) {}

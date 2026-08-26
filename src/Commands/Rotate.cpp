@@ -66,8 +66,14 @@ void Rotate::execute(){
             }else{
                 double angle_turned = heading - initial_ang;
                 int mV = drive->residual_angular_pid->update(angle_turned);
-                drive->setVoltageLeft(-mV-drive->angular_kS*sgn(mV));
-                drive->setVoltageRight(mV+drive->angular_kS*sgn(mV));
+
+                constexpr double kKickDeadbandRad = 0.0174533; // ~1 degree - stop kicking once this close, let PID alone settle
+                constexpr double kKickScale = 0.4; // fraction of measured kS to actually apply - full kS overshoots the last bit of error
+                bool nearTarget = fabs(angError) < kKickDeadbandRad;
+                int kick = nearTarget ? 0 : (int)(drive->angular_kS * kKickScale) * sgn(mV);
+
+                drive->setVoltageLeft(-mV - kick);
+                drive->setVoltageRight(mV + kick);
             }
 
             profile_over=true;

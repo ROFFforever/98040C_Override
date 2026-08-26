@@ -91,12 +91,12 @@ void drivetrain::periodic(){
         TELEMETRY.debug("MISSING SENSOR");
     }
 
-    // plugga++;
-    // if(plugga >= 3){
-    //     TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
-    //         pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
-    //     plugga = 0;
-    // }
+    plugga++;
+    if(plugga >= 3){
+        TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
+            pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
+        plugga = 0;
+    }
 }
 
 void drivetrain::setPctLeft(int pct){
@@ -232,7 +232,7 @@ int drivetrain::get_angular_voltage(){
     for(int32_t v : rightVoltages) rightSum += v;
     double leftAvg = leftSum / leftVoltages.size();
     double rightAvg = rightSum / rightVoltages.size();
-    return (int)((leftAvg - rightAvg) / 2.0); //millivolts
+    return (int)((rightAvg - leftAvg) / 2.0); //millivolts
 }
 Pose drivetrain::gpos(){
     return this->pos;

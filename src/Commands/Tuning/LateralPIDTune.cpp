@@ -4,6 +4,10 @@
 #include <format>
 #include <cmath>
 
+namespace {
+constexpr uint32_t kSendPeriodMs = 30; // ~33Hz
+}
+
 void LateralPIDTune::initialize() {
   drive->residual_PID_lateral->reset();
   Pose start = drive->gpos();
@@ -13,6 +17,7 @@ void LateralPIDTune::initialize() {
   dirY = std::sin(start.theta);
   drive->residual_PID_lateral->set_target(stepIn);
   time = new Timer(testTimeMs);
+  lastSendMs = 0;
 }
 
 void LateralPIDTune::execute() {
@@ -23,10 +28,14 @@ void LateralPIDTune::execute() {
   drive->setVoltageLeft(mV + sgn(mV) * drive->lateral_kS);
   drive->setVoltageRight(mV + sgn(mV) * drive->lateral_kS);
 
-  std::string msg = std::format(
-      "{{\"t\": {}, \"targetIn\": {}, \"traveledIn\": {}, \"errorIn\": {}, \"mV\": {}}}\n",
-      time->getTimePassed(), stepIn, traveled, stepIn - traveled, mV);
-  TELEMETRY.send(msg);
+  uint32_t nowMs = time->getTimePassed();
+  if (nowMs - lastSendMs >= kSendPeriodMs) {
+    lastSendMs = nowMs;
+    std::string msg = std::format(
+        "{{\"t\": {}, \"targetIn\": {}, \"traveledIn\": {}, \"errorIn\": {}, \"mV\": {}}}\n",
+        nowMs, stepIn, traveled, stepIn - traveled, mV);
+    TELEMETRY.send(msg);
+  }
 }
 
 bool LateralPIDTune::isFinished() {

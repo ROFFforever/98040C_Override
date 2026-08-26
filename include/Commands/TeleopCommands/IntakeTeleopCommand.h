@@ -1,18 +1,18 @@
 #pragma once
 
 #include "CommandScheduler/command.h"
-#include "Subsystems/intake.h"
+#include "Subsystems/Intake.h"
 #include "pros/misc.h"
 
 class IntakeTeleopCommand : public Command{
     private:
-    intake* intake_motors;
+    Intake* intake_motors;
     pros::Controller* controller;
     pros::controller_digital_e_t intake_bind, outtake_bind;
 
 
     public:
-    IntakeTeleopCommand(intake* intake_motors, pros::Controller* controller, pros::controller_digital_e_t intake_bind, pros::controller_digital_e_t outtake_bind);
+    IntakeTeleopCommand(Intake* intake_motors, pros::Controller* controller, pros::controller_digital_e_t intake_bind, pros::controller_digital_e_t outtake_bind);
     void execute() override;
     void end(bool interrupted) override;
 

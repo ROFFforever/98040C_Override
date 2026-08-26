@@ -11,7 +11,7 @@ class PID{
     public:
     PID(double kP, double kI, double kD, double windup_range, double max_integral) : kP(kP), kI(kI), kD(kD), windup_range(windup_range), max_integral(max_integral) {}
     double update(double input);
-    void reset();
+    void reset(double seed_error = 0.0);
     void set_target(double target);
     double get_target();
 

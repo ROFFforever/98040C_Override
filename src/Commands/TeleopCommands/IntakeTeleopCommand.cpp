@@ -1,6 +1,6 @@
-#include "Commands/IntakeTeleopCommand.h"
+#include "Commands/TeleopCommands/IntakeTeleopCommand.h"
 
-IntakeTeleopCommand::IntakeTeleopCommand(intake *intake_motors,
+IntakeTeleopCommand::IntakeTeleopCommand(Intake *intake_motors,
                                          pros::Controller *controller, pros::controller_digital_e_t intake_bind, pros::controller_digital_e_t outtake_bind)
     : intake_motors(intake_motors), controller(controller), intake_bind(intake_bind), outtake_bind(outtake_bind){}
 

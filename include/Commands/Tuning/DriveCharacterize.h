@@ -38,7 +38,8 @@ class DriveCharacterize : public Command{
     // 50%  for 600ms   -- cruise (mid speed)
     // 65%  for 700ms   -- cruise (mid-high speed)
     // 85%  for 900ms   -- cruise (near-max speed)
-    //  0%  for 300ms   -- full stop
+    //  0%  for 600ms   -- coast down (data still gathered)
+    //  break for 3500ms -- hard stop, no data gathered, before reversing
     // -20% for 500ms   -- cruise (low speed, reverse)
     // -35% for 500ms   -- cruise (low-mid speed, reverse)
     // -50% for 600ms   -- cruise (mid speed, reverse)

@@ -4,13 +4,14 @@
 #include "util/mathUtils.h"
 
 double settle_range_config = 1.5; //1.5 inches is reasonable
+double heading_lock_distance = 6.0;
 
 tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time, double settle_range) {
   this->x = x;
   this->y = y;
   this->constraints = constraints;
   this->drive = drive;
-  this->max_time = max_time == Units::AUTO_TIME ? 1.0 : max_time;
+  this->max_time = max_time;
   this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
 }
 
@@ -40,6 +41,7 @@ void tank_motion_profile::initialize() {
     dirX = 0;
     dirY = 0;
   }
+  targetHeading = curPos.angle(goalPos);
 
   // create the trap prof
   if (constraints.init_vel == Units::CURRENT_VEL) {
@@ -50,14 +52,13 @@ void tank_motion_profile::initialize() {
                                  {dist, constraints.final_vel, 0},
                                  {0, constraints.init_vel, 0});
 
-  drive->residual_angular_pid->set_target(angleDifference(drive->gpos(), x, y));
+  drive->residual_angular_pid->set_target(targetHeading);
+  max_time = max_time == Units::AUTO_TIME ? motion->totalTime() + 1.5 : max_time;
 }
 
 void tank_motion_profile::execute() {
   //get current vars
   double heading = drive->gpos().theta;
-  double targetHeading = angleDifference(drive->gpos(), x, y); // Recalculate to stay pointed at target
-  double headingError = angleDifference(targetHeading, heading);
   double curr_time = ((pros::millis() - start_time) / 1000.0);
   auto result = motion->calculate(curr_time);
 
@@ -68,10 +69,15 @@ void tank_motion_profile::execute() {
   double curr_pos = (nowPos.x - startX) * dirX + (nowPos.y - startY) * dirY;
   double lateral_error = motion->getDist() - curr_pos;
 
+  if (fabs(lateral_error) > heading_lock_distance) {
+    targetHeading = angleDifference(nowPos, x, y);
+  }
+  double headingError = angleDifference(targetHeading, heading);
+
   //Actual logic for moving straight there
   if (!result.has_value()) {
     if (!profile_over) { //one time way to reset the PID to a new target(just shifted everything)
-      drive->residual_PID_lateral->reset();
+      drive->residual_PID_lateral->reset(lateral_error);
     }
 
     //reset PID lateral

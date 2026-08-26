@@ -24,8 +24,8 @@ struct PowerStage {
 
 const std::vector<PowerStage> LATERAL_STAGES = {
     {0.2, 500, true},  {0.35, 500, false}, {0.5, 600, false},  {0.65, 700, false},
-    {0.85, 900, false}, {0.0, 300, false},
-    {-0.2, 500, true, 2000}, {-0.35, 500, false}, {-0.5, 600, false}, {-0.65, 700, false},
+    {0.85, 900, false}, {0.0, 600, false},
+    {-0.2, 500, true, 3500}, {-0.35, 500, false}, {-0.5, 600, false}, {-0.65, 700, false},
     {-0.85, 900, false}, {0.0, 300, false},
 };
 

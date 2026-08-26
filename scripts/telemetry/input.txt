@@ -1,84 +1,105 @@
-{"t": 10, "targetDeg": 90.058304, "headingDeg": 0.05727023, "errorDeg": 90.00103, "mV": 219914}
-{"t": 40, "targetDeg": 90.058304, "headingDeg": 0.06359272, "errorDeg": 89.99472, "mV": 31403}
-{"t": 70, "targetDeg": 90.058304, "headingDeg": 0.90218765, "errorDeg": 89.15611, "mV": 30004}
-{"t": 100, "targetDeg": 90.058304, "headingDeg": 3.5675054, "errorDeg": 86.49081, "mV": 27876}
-{"t": 130, "targetDeg": 90.058304, "headingDeg": 7.968941, "errorDeg": 82.08937, "mV": 25169}
-{"t": 160, "targetDeg": 90.058304, "headingDeg": 14.113098, "errorDeg": 75.94521, "mV": 21845}
-{"t": 190, "targetDeg": 90.058304, "headingDeg": 21.940145, "errorDeg": 68.11816, "mV": 17930}
-{"t": 220, "targetDeg": 90.058304, "headingDeg": 31.31283, "errorDeg": 58.74548, "mV": 13579}
-{"t": 250, "targetDeg": 90.058304, "headingDeg": 42.14017, "errorDeg": 47.91814, "mV": 8888}
-{"t": 280, "targetDeg": 90.058304, "headingDeg": 54.351185, "errorDeg": 35.707127, "mV": 3668}
-{"t": 310, "targetDeg": 90.058304, "headingDeg": 67.299644, "errorDeg": 22.758663, "mV": -1119}
-{"t": 340, "targetDeg": 90.058304, "headingDeg": 77.19119, "errorDeg": 12.867116, "mV": 930}
-{"t": 370, "targetDeg": 90.058304, "headingDeg": 87.30001, "errorDeg": 2.7582924, "mV": -5719}
-{"t": 400, "targetDeg": 90.058304, "headingDeg": 95.146194, "errorDeg": -5.087888, "mV": -6573}
-{"t": 430, "targetDeg": 90.058304, "headingDeg": 100.343575, "errorDeg": -10.285272, "mV": -6554}
-{"t": 460, "targetDeg": 90.058304, "headingDeg": 102.75426, "errorDeg": -12.695946, "mV": -5558}
-{"t": 490, "targetDeg": 90.058304, "headingDeg": 102.696, "errorDeg": -12.637692, "mV": -3819}
-{"t": 520, "targetDeg": 90.058304, "headingDeg": 100.713295, "errorDeg": -10.654991, "mV": -1976}
-{"t": 550, "targetDeg": 90.058304, "headingDeg": 97.51436, "errorDeg": -7.4560575, "mV": -265}
-{"t": 580, "targetDeg": 90.058304, "headingDeg": 94.38011, "errorDeg": -4.321807, "mV": 580}
-{"t": 610, "targetDeg": 90.058304, "headingDeg": 91.6896, "errorDeg": -1.6312859, "mV": 1186}
-{"t": 640, "targetDeg": 90.058304, "headingDeg": 90.26396, "errorDeg": -0.20565467, "mV": 452}
-{"t": 670, "targetDeg": 90.058304, "headingDeg": 90.59382, "errorDeg": -0.5355118, "mV": -604}
-{"t": 700, "targetDeg": 90.058304, "headingDeg": 91.09047, "errorDeg": -1.032169, "mV": -645}
-{"t": 730, "targetDeg": 90.058304, "headingDeg": 91.301056, "errorDeg": -1.2427437, "mV": -516}
-{"t": 760, "targetDeg": 90.058304, "headingDeg": 91.254005, "errorDeg": -1.1956974, "mV": -340}
-{"t": 790, "targetDeg": 90.058304, "headingDeg": 91.05961, "errorDeg": -1.0013034, "mV": -184}
-{"t": 820, "targetDeg": 90.058304, "headingDeg": 90.84099, "errorDeg": -0.78267586, "mV": -141}
-{"t": 850, "targetDeg": 90.058304, "headingDeg": 90.751686, "errorDeg": -0.693378, "mV": -217}
-{"t": 880, "targetDeg": 90.058304, "headingDeg": 90.790855, "errorDeg": -0.7325423, "mV": -296}
-{"t": 910, "targetDeg": 90.058304, "headingDeg": 90.82209, "errorDeg": -0.7637836, "mV": -270}
-{"t": 940, "targetDeg": 90.058304, "headingDeg": 90.786026, "errorDeg": -0.72772014, "mV": -224}
-{"t": 970, "targetDeg": 90.058304, "headingDeg": 90.76491, "errorDeg": -0.7066012, "mV": -238}
-{"t": 1000, "targetDeg": 90.058304, "headingDeg": 90.76741, "errorDeg": -0.7091011, "mV": -252}
-{"t": 1030, "targetDeg": 90.058304, "headingDeg": 90.76484, "errorDeg": -0.7065261, "mV": -240}
-{"t": 1060, "targetDeg": 90.058304, "headingDeg": 90.76492, "errorDeg": -0.7066217, "mV": -248}
-{"t": 1090, "targetDeg": 90.058304, "headingDeg": 90.76734, "errorDeg": -0.70903957, "mV": -248}
-{"t": 1120, "targetDeg": 90.058304, "headingDeg": 90.76949, "errorDeg": -0.71118426, "mV": -250}
-{"t": 1150, "targetDeg": 90.058304, "headingDeg": 90.773506, "errorDeg": -0.7152004, "mV": -249}
-{"t": 1180, "targetDeg": 90.058304, "headingDeg": 90.77429, "errorDeg": -0.71597904, "mV": -252}
-{"t": 1210, "targetDeg": 90.058304, "headingDeg": 90.776535, "errorDeg": -0.7182262, "mV": -247}
-{"t": 1240, "targetDeg": 90.058304, "headingDeg": 90.7764, "errorDeg": -0.7180896, "mV": -255}
-{"t": 1270, "targetDeg": 90.058304, "headingDeg": 90.77735, "errorDeg": -0.71903896, "mV": -249}
-{"t": 1300, "targetDeg": 90.058304, "headingDeg": 90.773415, "errorDeg": -0.7151116, "mV": -241}
-{"t": 1330, "targetDeg": 90.058304, "headingDeg": 90.77628, "errorDeg": -0.7179735, "mV": -250}
-{"t": 1360, "targetDeg": 90.058304, "headingDeg": 90.77646, "errorDeg": -0.71815103, "mV": -253}
-{"t": 1390, "targetDeg": 90.058304, "headingDeg": 90.77417, "errorDeg": -0.71586293, "mV": -249}
-{"t": 1420, "targetDeg": 90.058304, "headingDeg": 90.777435, "errorDeg": -0.7191346, "mV": -251}
-{"t": 1450, "targetDeg": 90.058304, "headingDeg": 90.776566, "errorDeg": -0.7182535, "mV": -253}
-{"t": 1480, "targetDeg": 90.058304, "headingDeg": 90.778496, "errorDeg": -0.72019327, "mV": -258}
-{"t": 1510, "targetDeg": 90.058304, "headingDeg": 90.77753, "errorDeg": -0.7192166, "mV": -246}
-{"t": 1540, "targetDeg": 90.058304, "headingDeg": 90.77416, "errorDeg": -0.71585613, "mV": -249}
-{"t": 1570, "targetDeg": 90.058304, "headingDeg": 90.77599, "errorDeg": -0.7176866, "mV": -246}
-{"t": 1600, "targetDeg": 90.058304, "headingDeg": 90.77659, "errorDeg": -0.71828085, "mV": -253}
-{"t": 1630, "targetDeg": 90.058304, "headingDeg": 90.77671, "errorDeg": -0.71839696, "mV": -256}
-{"t": 1660, "targetDeg": 90.058304, "headingDeg": 90.774796, "errorDeg": -0.71649134, "mV": -248}
-{"t": 1690, "targetDeg": 90.058304, "headingDeg": 90.77462, "errorDeg": -0.7163137, "mV": -244}
-{"t": 1720, "targetDeg": 90.058304, "headingDeg": 90.77573, "errorDeg": -0.7174202, "mV": -251}
-{"t": 1750, "targetDeg": 90.058304, "headingDeg": 90.775925, "errorDeg": -0.7176115, "mV": -248}
-{"t": 1780, "targetDeg": 90.058304, "headingDeg": 90.777565, "errorDeg": -0.71925753, "mV": -257}
-{"t": 1810, "targetDeg": 90.058304, "headingDeg": 90.778534, "errorDeg": -0.7202274, "mV": -255}
-{"t": 1840, "targetDeg": 90.058304, "headingDeg": 90.776955, "errorDeg": -0.71864283, "mV": -252}
-{"t": 1870, "targetDeg": 90.058304, "headingDeg": 90.775024, "errorDeg": -0.71672356, "mV": -248}
-{"t": 1900, "targetDeg": 90.058304, "headingDeg": 90.775, "errorDeg": -0.7166962, "mV": -246}
-{"t": 1930, "targetDeg": 90.058304, "headingDeg": 90.77991, "errorDeg": -0.7216003, "mV": -257}
-{"t": 1960, "targetDeg": 90.058304, "headingDeg": 90.77568, "errorDeg": -0.7173724, "mV": -247}
-{"t": 1990, "targetDeg": 90.058304, "headingDeg": 90.77705, "errorDeg": -0.71873844, "mV": -252}
-{"t": 2020, "targetDeg": 90.058304, "headingDeg": 90.777, "errorDeg": -0.71869063, "mV": -251}
-{"t": 2050, "targetDeg": 90.058304, "headingDeg": 90.778534, "errorDeg": -0.7202274, "mV": -252}
-{"t": 2080, "targetDeg": 90.058304, "headingDeg": 90.77589, "errorDeg": -0.71757734, "mV": -244}
-{"t": 2110, "targetDeg": 90.058304, "headingDeg": 90.77742, "errorDeg": -0.7191141, "mV": -258}
-{"t": 2140, "targetDeg": 90.058304, "headingDeg": 90.776825, "errorDeg": -0.71851987, "mV": -250}
-{"t": 2170, "targetDeg": 90.058304, "headingDeg": 90.7765, "errorDeg": -0.71819204, "mV": -250}
-{"t": 2200, "targetDeg": 90.058304, "headingDeg": 90.77483, "errorDeg": -0.7165255, "mV": -251}
-{"t": 2230, "targetDeg": 90.058304, "headingDeg": 90.777176, "errorDeg": -0.71886826, "mV": -251}
-{"t": 2260, "targetDeg": 90.058304, "headingDeg": 90.776695, "errorDeg": -0.7183901, "mV": -250}
-{"t": 2290, "targetDeg": 90.058304, "headingDeg": 90.77792, "errorDeg": -0.7196196, "mV": -257}
-{"t": 2320, "targetDeg": 90.058304, "headingDeg": 90.77728, "errorDeg": -0.71897066, "mV": -250}
-{"t": 2350, "targetDeg": 90.058304, "headingDeg": 90.77685, "errorDeg": -0.7185336, "mV": -243}
-{"t": 2380, "targetDeg": 90.058304, "headingDeg": 90.77733, "errorDeg": -0.7190185, "mV": -253}
-{"t": 2410, "targetDeg": 90.058304, "headingDeg": 90.77799, "errorDeg": -0.7196879, "mV": -255}
-{"t": 2440, "targetDeg": 90.058304, "headingDeg": 90.77861, "errorDeg": -0.7203094, "mV": -249}
-{"t": 2470, "targetDeg": 90.058304, "headingDeg": 90.775055, "errorDeg": -0.71675086, "mV": -243}
-{"t": 2500, "targetDeg": 90.058304, "headingDeg": 90.77541, "errorDeg": -0.71710604, "mV": -245}
+Transferring V5 to download channel
+Established terminal connection
+
+
+
+         _+=+_
+      .-`  .  `-.          8888888b.  8888888b.   .d88888b.   .d8888b.
+   _+`     "     `+_       888   Y88b 888   Y88b d88P" "Y88b d88P  Y88b
+  \\\sssssssssssss///      888    888 888    888 888     888 Y88b.
+     .ss\  *  /ss.         888   d88P 888   d88P 888     888  "Y888b.
+ .+bm  .s  *  s.  md+.     8888888P"  8888888P"  888     888     "Y88b.
+.hMMMMs .  *  . sMMMMh.    888        888 T88b   888     888       "888
+ `\hMMMb \ | / dMMMh:      888        888  T88b  Y88b. .d88P Y88b  d88P
+   -SNMNo  -  oNMNs-       888        888   T88b  "Y88888P"   "Y8888P"
+     `+dMh\./dMd/
+        `:yNy:`                      Powered by PROS for VEX V5
+           "                Copyright (c) Purdue University ACM SIGBots
+Version:        4.2.2     Platform:  V1.1.5 (b18)     Uptime:    0.000 s
+Compiled:   Aug 25 2026 16:07:38     Directory:                        
+
+
+{"t": 10, "targetDeg": 89.79217, "headingDeg": -0.20974977, "errorDeg": 90.00192, "mV": 73829}
+{"t": 40, "targetDeg": 89.79217, "headingDeg": -0.21063417, "errorDeg": 90.00281, "mV": 73829}
+{"t": 70, "targetDeg": 89.79217, "headingDeg": 1.0537945, "errorDeg": 88.73838, "mV": 72792}
+{"t": 100, "targetDeg": 89.79217, "headingDeg": 4.2653737, "errorDeg": 85.5268, "mV": 70158}
+{"t": 130, "targetDeg": 89.79217, "headingDeg": 9.2390175, "errorDeg": 80.55316, "mV": 66078}
+{"t": 160, "targetDeg": 89.79217, "headingDeg": 15.697142, "errorDeg": 74.09503, "mV": 60780}
+{"t": 190, "targetDeg": 89.79217, "headingDeg": 23.707335, "errorDeg": 66.08484, "mV": 54209}
+{"t": 220, "targetDeg": 89.79217, "headingDeg": 33.05328, "errorDeg": 56.7389, "mV": 46543}
+{"t": 250, "targetDeg": 89.79217, "headingDeg": 43.685947, "errorDeg": 46.106228, "mV": 37821}
+{"t": 280, "targetDeg": 89.79217, "headingDeg": 55.37585, "errorDeg": 34.416325, "mV": 28231}
+{"t": 310, "targetDeg": 89.79217, "headingDeg": 67.95328, "errorDeg": 21.838903, "mV": 17914}
+{"t": 340, "targetDeg": 89.79217, "headingDeg": 81.51735, "errorDeg": 8.274831, "mV": 6787}
+{"t": 370, "targetDeg": 89.79217, "headingDeg": 95.56082, "errorDeg": -5.7686453, "mV": -4732}
+{"t": 400, "targetDeg": 89.79217, "headingDeg": 109.32551, "errorDeg": -19.533327, "mV": -16023}
+{"t": 430, "targetDeg": 89.79217, "headingDeg": 120.257706, "errorDeg": -30.465528, "mV": -24991}
+{"t": 460, "targetDeg": 89.79217, "headingDeg": 127.63003, "errorDeg": -37.837845, "mV": -31038}
+{"t": 490, "targetDeg": 89.79217, "headingDeg": 129.94203, "errorDeg": -40.14985, "mV": -32935}
+{"t": 520, "targetDeg": 89.79217, "headingDeg": 129.00368, "errorDeg": -39.211506, "mV": -32165}
+{"t": 550, "targetDeg": 89.79217, "headingDeg": 126.3578, "errorDeg": -36.565628, "mV": -29994}
+{"t": 580, "targetDeg": 89.79217, "headingDeg": 121.58618, "errorDeg": -31.794003, "mV": -26080}
+{"t": 610, "targetDeg": 89.79217, "headingDeg": 115.02465, "errorDeg": -25.23247, "mV": -20698}
+{"t": 640, "targetDeg": 89.79217, "headingDeg": 107.08776, "errorDeg": -17.295586, "mV": -14187}
+{"t": 670, "targetDeg": 89.79217, "headingDeg": 97.85443, "errorDeg": -8.062257, "mV": -6613}
+{"t": 700, "targetDeg": 89.79217, "headingDeg": 87.62218, "errorDeg": 2.1699946, "mV": 1780}
+{"t": 730, "targetDeg": 89.79217, "headingDeg": 77.66962, "errorDeg": 12.122563, "mV": 9944}
+{"t": 760, "targetDeg": 89.79217, "headingDeg": 69.4228, "errorDeg": 20.369377, "mV": 16709}
+{"t": 790, "targetDeg": 89.79217, "headingDeg": 64.70429, "errorDeg": 25.087883, "mV": 20579}
+{"t": 820, "targetDeg": 89.79217, "headingDeg": 64.23944, "errorDeg": 25.552732, "mV": 20961}
+{"t": 850, "targetDeg": 89.79217, "headingDeg": 66.04439, "errorDeg": 23.747791, "mV": 19480}
+{"t": 880, "targetDeg": 89.79217, "headingDeg": 69.90194, "errorDeg": 19.890238, "mV": 16316}
+{"t": 910, "targetDeg": 89.79217, "headingDeg": 75.38139, "errorDeg": 14.41078, "mV": 11821}
+{"t": 940, "targetDeg": 89.79217, "headingDeg": 82.5262, "errorDeg": 7.2659783, "mV": 5960}
+{"t": 970, "targetDeg": 89.79217, "headingDeg": 90.38042, "errorDeg": -0.5882338, "mV": -482}
+{"t": 1000, "targetDeg": 89.79217, "headingDeg": 98.09843, "errorDeg": -8.306252, "mV": -6813}
+{"t": 1030, "targetDeg": 89.79217, "headingDeg": 104.7375, "errorDeg": -14.945325, "mV": -12259}
+{"t": 1060, "targetDeg": 89.79217, "headingDeg": 107.586296, "errorDeg": -17.794115, "mV": -14596}
+{"t": 1090, "targetDeg": 89.79217, "headingDeg": 107.10285, "errorDeg": -17.31068, "mV": -14200}
+{"t": 1120, "targetDeg": 89.79217, "headingDeg": 104.68265, "errorDeg": -14.890471, "mV": -12214}
+{"t": 1150, "targetDeg": 89.79217, "headingDeg": 100.29048, "errorDeg": -10.498305, "mV": -8611}
+{"t": 1180, "targetDeg": 89.79217, "headingDeg": 94.504036, "errorDeg": -4.711865, "mV": -3865}
+{"t": 1210, "targetDeg": 89.79217, "headingDeg": 88.3792, "errorDeg": 1.4129707, "mV": 1159}
+{"t": 1240, "targetDeg": 89.79217, "headingDeg": 82.21447, "errorDeg": 7.5777082, "mV": 6216}
+{"t": 1270, "targetDeg": 89.79217, "headingDeg": 77.3247, "errorDeg": 12.467482, "mV": 10227}
+{"t": 1300, "targetDeg": 89.79217, "headingDeg": 75.88898, "errorDeg": 13.903194, "mV": 11404}
+{"t": 1330, "targetDeg": 89.79217, "headingDeg": 76.95499, "errorDeg": 12.8371935, "mV": 10530}
+{"t": 1360, "targetDeg": 89.79217, "headingDeg": 79.239, "errorDeg": 10.553178, "mV": 8656}
+{"t": 1390, "targetDeg": 89.79217, "headingDeg": 82.63868, "errorDeg": 7.1534986, "mV": 5868}
+{"t": 1420, "targetDeg": 89.79217, "headingDeg": 86.99782, "errorDeg": 2.7943559, "mV": 2292}
+{"t": 1450, "targetDeg": 89.79217, "headingDeg": 91.890976, "errorDeg": -2.0987985, "mV": -1721}
+{"t": 1480, "targetDeg": 89.79217, "headingDeg": 96.55627, "errorDeg": -6.764091, "mV": -5548}
+{"t": 1510, "targetDeg": 89.79217, "headingDeg": 99.91772, "errorDeg": -10.125541, "mV": -8306}
+{"t": 1540, "targetDeg": 89.79217, "headingDeg": 100.11742, "errorDeg": -10.325235, "mV": -8469}
+{"t": 1570, "targetDeg": 89.79217, "headingDeg": 98.65074, "errorDeg": -8.858568, "mV": -7266}
+{"t": 1600, "targetDeg": 89.79217, "headingDeg": 96.2352, "errorDeg": -6.443024, "mV": -5285}
+{"t": 1630, "targetDeg": 89.79217, "headingDeg": 92.76727, "errorDeg": -2.9750981, "mV": -2440}
+{"t": 1660, "targetDeg": 89.79217, "headingDeg": 88.63347, "errorDeg": 1.15871, "mV": 950}
+{"t": 1690, "targetDeg": 89.79217, "headingDeg": 84.720116, "errorDeg": 5.07206, "mV": 4160}
+{"t": 1720, "targetDeg": 89.79217, "headingDeg": 81.59227, "errorDeg": 8.199904, "mV": 6726}
+{"t": 1750, "targetDeg": 89.79217, "headingDeg": 81.27919, "errorDeg": 8.512986, "mV": 6983}
+{"t": 1780, "targetDeg": 89.79217, "headingDeg": 82.728195, "errorDeg": 7.063982, "mV": 5794}
+{"t": 1810, "targetDeg": 89.79217, "headingDeg": 85.36002, "errorDeg": 4.4321604, "mV": 3635}
+{"t": 1840, "targetDeg": 89.79217, "headingDeg": 89.0426, "errorDeg": 0.74956805, "mV": 614}
+{"t": 1870, "targetDeg": 89.79217, "headingDeg": 92.985954, "errorDeg": -3.1937804, "mV": -2619}
+{"t": 1900, "targetDeg": 89.79217, "headingDeg": 96.4642, "errorDeg": -6.672027, "mV": -5473}
+{"t": 1930, "targetDeg": 89.79217, "headingDeg": 98.435585, "errorDeg": -8.643404, "mV": -7090}
+{"t": 1960, "targetDeg": 89.79217, "headingDeg": 97.77738, "errorDeg": -7.9852057, "mV": -6550}
+{"t": 1990, "targetDeg": 89.79217, "headingDeg": 95.81713, "errorDeg": -6.0249553, "mV": -4942}
+{"t": 2020, "targetDeg": 89.79217, "headingDeg": 92.811066, "errorDeg": -3.0188866, "mV": -2476}
+{"t": 2050, "targetDeg": 89.79217, "headingDeg": 89.101006, "errorDeg": 0.6911699, "mV": 566}
+{"t": 2080, "targetDeg": 89.79217, "headingDeg": 85.54902, "errorDeg": 4.243155, "mV": 3480}
+{"t": 2110, "targetDeg": 89.79217, "headingDeg": 82.57406, "errorDeg": 7.2181125, "mV": 5921}
+{"t": 2140, "targetDeg": 89.79217, "headingDeg": 82.03915, "errorDeg": 7.7530255, "mV": 6359}
+{"t": 2170, "targetDeg": 89.79217, "headingDeg": 83.47204, "errorDeg": 6.3201404, "mV": 5184}
+{"t": 2200, "targetDeg": 89.79217, "headingDeg": 86.12643, "errorDeg": 3.6657512, "mV": 3007}
+{"t": 2230, "targetDeg": 89.79217, "headingDeg": 89.72661, "errorDeg": 0.065565564, "mV": 53}
+{"t": 2260, "targetDeg": 89.79217, "headingDeg": 93.40624, "errorDeg": -3.6140692, "mV": -2964}
+{"t": 2290, "targetDeg": 89.79217, "headingDeg": 96.587, "errorDeg": -6.794827, "mV": -5573}
+{"t": 2320, "targetDeg": 89.79217, "headingDeg": 98.13659, "errorDeg": -8.344406, "mV": -6844}
+{"t": 2350, "targetDeg": 89.79217, "headingDeg": 97.22922, "errorDeg": -7.437042, "mV": -6100}
+{"t": 2380, "targetDeg": 89.79217, "headingDeg": 95.15071, "errorDeg": -5.3585334, "mV": -4395}
+{"t": 2410, "targetDeg": 89.79217, "headingDeg": 91.96505, "errorDeg": -2.1728718, "mV": -1782}
+{"t": 2440, "targetDeg": 89.79217, "headingDeg": 88.2324, "errorDeg": 1.5597787, "mV": 1279}
+{"t": 2470, "targetDeg": 89.79217, "headingDeg": 83.744576, "errorDeg": 6.0476027, "mV": 4960}
+{"t": 2500, "targetDeg": 89.79217, "headingDeg": 81.83086, "errorDeg": 7.961319, "mV": 6530}

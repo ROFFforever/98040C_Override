@@ -1,4 +1,4 @@
-#include "Commands/ArcadeDriveCommand.h"
+#include "Commands/TeleopCommands/ArcadeDriveCommand.h"
 
 ArcadeDriveCommand::ArcadeDriveCommand(drivetrain* drive, pros::Controller* controller)
     : drive(drive), controller(controller) {}

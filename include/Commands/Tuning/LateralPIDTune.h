@@ -15,6 +15,7 @@ class LateralPIDTune : public Command {
     uint32_t testTimeMs;
     double startX = 0, startY = 0, dirX = 0, dirY = 0;
     Timer* time = nullptr;
+    uint32_t lastSendMs = 0;
 
     public:
     LateralPIDTune(drivetrain* drive, double stepIn, uint32_t testTimeMs = 3000) :

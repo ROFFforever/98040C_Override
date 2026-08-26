@@ -77,8 +77,8 @@ class drivetrain : public Subsystem{
     PID* residual_PID_lateral;
 
     //used for end of loop residual PID "pushers"
-    int angular_kS;
-    int lateral_kS;
+    int angular_kS = 0;
+    int lateral_kS = 0;
     //simple drivetrain without odom tracking(manually track with drive)
     drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, PID* angular_pid);
     //Drivetrain with basic odom, if don't have a dead wheel, set nullptr

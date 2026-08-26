@@ -23,6 +23,7 @@ class tank_motion_profile : public Command{
         //lets us project live position onto the intended line instead of using
         //remaining distance-to-goal, which isn't monotonic once you overshoot
         double startX, startY, dirX, dirY;
+        double targetHeading;
 
         //check whether motion is finished
         bool finished=false;

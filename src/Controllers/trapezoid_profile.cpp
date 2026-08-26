@@ -29,13 +29,14 @@ TrapezoidProfile::TrapezoidProfile(Constraints constraints, State goal, State in
 
     if (cruiseArea <= 0) {
         //triangle case: too short to ever reach cruise_vel, so solve for the actual (lower) peak velocity instead
-        double peakVel = sqrt(constraints.accel * error + (initVel * initVel + goalVel * goalVel) / 2.0);
+        double peakVelSq = constraints.accel * error + (initVel * initVel + goalVel * goalVel) / 2.0;
+        double peakVel = sqrt(peakVelSq > 0 ? peakVelSq : 0);
         endAccel = (peakVel - initVel) / constraints.accel;
         decelTime = (peakVel - goalVel) / constraints.accel;
         constraints.cruise_vel = peakVel;
     }
 
-    endFullSpeed = endAccel + (cruiseArea / constraints.cruise_vel);
+    endFullSpeed = endAccel + (constraints.cruise_vel > 0 ? cruiseArea / constraints.cruise_vel : 0);
     endDecel = decelTime + endFullSpeed;
 }
 
