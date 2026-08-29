@@ -167,31 +167,28 @@ bool drivetrain::update_pos(){
 void drivetrain::update_velocities(){
     uint32_t now = pros::millis();
 
-    if(velHistCount < 3){
+    // Raw signed distance for this tick: prefer the vert dead wheel (already
+    // signed forward-positive by construction, see odom_wheel's comment) so
+    // this is one plain differentiation of one sensor - no chord math, no
+    // heading projection, no multi-tick smoothing window to amplify noise
+    // through. Falls back to averaged motor distance if there's no dead wheel.
+    double rawDist = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr)
+                          ? vert_odom->current_val
+                          : (getLeftDistance() + getRightDistance()) / 2.0;
+
+    if(lastVelTickTime == 0){
         lastVel = 0;
     }else{
-        double dt = (now - velHistTime[0]) / 1000.0;
-        if(dt > 0){
-            double dx = pos.x - velHistX[0];
-            double dy = pos.y - velHistY[0];
-            double speed = std::hypot(dx, dy) / dt;
-            double forwardComponent = dx * std::cos(pos.theta) + dy * std::sin(pos.theta);
-            lastVel = (forwardComponent < 0 ? -1.0 : 1.0) * speed;
-        }
+        double dt = (now - lastVelTickTime) / 1000.0;
+        if(dt > 0) lastVel = (rawDist - lastOdomDist) / dt;
     }
-    velHistX[0] = velHistX[1]; velHistX[1] = velHistX[2]; velHistX[2] = pos.x;
-    velHistY[0] = velHistY[1]; velHistY[1] = velHistY[2]; velHistY[2] = pos.y;
-    velHistTime[0] = velHistTime[1]; velHistTime[1] = velHistTime[2]; velHistTime[2] = now;
-    if(velHistCount < 3) velHistCount++;
+    lastOdomDist = rawDist;
+    lastVelTickTime = now;
 
-    if(prevAngularVelTime == 0){
-        lastAngularVel = 0;
-    }else{
-        double angDt = (now - prevAngularVelTime) / 1000.0;
-        if(angDt > 0) lastAngularVel = (pos.theta - prevAngularPos) / angDt;
-    }
-    prevAngularPos = pos.theta;
-    prevAngularVelTime = now;
+    // Gyro rate is angular velocity as the sensor's native physical quantity -
+    // reading it directly needs no differentiation at all, unlike deriving it
+    // from tracked heading. Negated to match getAngle()'s CCW-positive flip.
+    lastAngularVel = imu != nullptr ? -degToRad(imu->get_gyro_rate().z) : 0;
 }
 
 void drivetrain::setPose(double x, double y, double theta){

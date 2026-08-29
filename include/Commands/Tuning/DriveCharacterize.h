@@ -1,51 +1,38 @@
+#pragma once
 #include "CommandScheduler/command.h"
-#include "Commands/Tuning/CharacterizeMode.h"
 #include "Subsystems/drivetrain.h"
-#include "Units.h"
 #include "util/timer.h"
 
+// Runs one combined power-step sequence - a slow ramp (well-conditioned kS/kV
+// signal) followed by a series of hard bursts (well-conditioned kA signal) -
+// and fits kS, kV, and kA together in a single least-squares regression over
+// the whole recording. Echo-style (echo_code/include/subsystems/drivetrain.h
+// + sysid/oneDofVelocitySystem.h): one joint fit over one richly-varied test,
+// rather than fitting kS/kV from a slow-ramp-only test and then kA as a
+// residual against a separate hard-power test that just assumes those are
+// exact - any error in the first fit used to silently bake into the second.
 class DriveCharacterize : public Command{
     private:
     drivetrain* drive = nullptr;
-    std::vector<std::array<double, 3>> vals; //contains V A and Voltage. Order goes Velocity A V
-    int MODE;
-    CharacterizeMode charMode;
-    double knownKS = 0;
-    double knownKV = 0;
-    Timer* time;
+    std::vector<std::array<double, 3>> vals; //contains V, A, Voltage. Order: Velocity, Acceleration, Voltage
+    Timer* time = nullptr;
     uint32_t lastStageEnd = 0;
-    uint32_t ticksSinceBreak = 0;
-    Timer* break_time; //time to put robot back in between stages
-    int hertz_controller = 0;
-
+    Timer* break_time = nullptr; //time to put robot back in between stages
 
     public:
+    explicit DriveCharacterize(drivetrain* drive) : drive(drive) {};
+
     void initialize() override;
     void execute() override;
     bool isFinished() override;
-    DriveCharacterize(drivetrain* drive, int MODE) :
-        drive(drive), MODE(MODE), charMode(CharacterizeMode::QUASISTATIC) {}; //can be either ANGULAR_TUNING or LATERAL_TUNING
-    DriveCharacterize(drivetrain* drive, double knownKS, double knownKV) :
-        drive(drive), MODE(0), charMode(CharacterizeMode::ACCEL_ONLY), knownKS(knownKS), knownKV(knownKV) {};
     void end(bool interrupted) override;
-    void send_all_data();
     void gather_tick_data();
     void compute_and_send_kav(); // fits V = kS*sign(v) + kV*v + kA*a over vals, sends only the 3 result coefficients
 
-    //this is power split:
-    // 20%  for 500ms   -- cruise (low speed)
-    // 35%  for 500ms   -- cruise (low-mid speed)
-    // 50%  for 600ms   -- cruise (mid speed)
-    // 65%  for 700ms   -- cruise (mid-high speed)
-    // 85%  for 900ms   -- cruise (near-max speed)
-    //  0%  for 600ms   -- coast down (data still gathered)
-    //  break for 3500ms -- hard stop, no data gathered, before reversing
-    // -20% for 500ms   -- cruise (low speed, reverse)
-    // -35% for 500ms   -- cruise (low-mid speed, reverse)
-    // -50% for 600ms   -- cruise (mid speed, reverse)
-    // -65% for 700ms   -- cruise (mid-high speed, reverse)
-    // -85% for 900ms   -- cruise (near-max speed, reverse)
-    //  0%  for 300ms   -- full stop
+    //this is power split (see DriveCharacterize.cpp's STAGES for the exact sequence):
+    // a slow ramp up and back down (both directions) for kS/kV, then a series
+    // of short hard bursts (both directions) for kA - all one continuous
+    // recording, no separate test/mode.
     void movement_stage(); //determine how much power the drivetrain should be getting right now.
 
     std::vector<Subsystem*> getRequirements() override;

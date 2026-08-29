@@ -51,14 +51,21 @@ class drivetrain : public Subsystem{
         double prevLeftDist = 0;
         double prevRightDist = 0;
 
-        double velHistX[3] = {0, 0, 0};
-        double velHistY[3] = {0, 0, 0};
-        uint32_t velHistTime[3] = {0, 0, 0};
-        int velHistCount = 0;
+        // Lateral velocity: raw single-tick delta of the primary drive-direction
+        // odom reading (or, with no dead wheel, averaged L/R motor distance),
+        // divided by measured dt - one differentiation of a single sensor
+        // stream. Echo-style (subsystems/drivetrain.h): this used to be a
+        // hypot() of a 2-tick-lagged GLOBAL pose delta built from BOTH dead
+        // wheels + heading combined, which was a much longer/noisier chain to
+        // differentiate through.
+        double lastOdomDist = 0;
+        uint32_t lastVelTickTime = 0;
         double lastVel = 0;
 
-        double prevAngularPos = 0;
-        uint32_t prevAngularVelTime = 0;
+        // Angular velocity: no history needed at all - see update_velocities(),
+        // which reads the IMU's gyro rate directly instead of differentiating
+        // tracked heading. A gyro measures angular velocity natively, so there's
+        // no differentiation/noise-amplification step in the loop.
         double lastAngularVel = 0;
 
         double dummy_var;

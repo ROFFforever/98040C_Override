@@ -25,6 +25,7 @@
 #include "Commands/Tuning/LateralPIDTune.h"
 #include "Commands/Tuning/RotateDialTest.h"
 #include "Commands/Tuning/MoveToPointDialTest.h"
+#include "Commands/Tuning/LateralMotionDiagnostic.h"
 
 //TEST ROBOT
 // pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
@@ -50,6 +51,7 @@
 
 //NEW ROBOT STUFF:
 pros::Motor lift_1(5);
+pros::Motor lift_2(7);
 pros::Rotation vertRotation(6); //reverse angle   
 pros::MotorGroup leftMotors({17, 20});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-18, -19});
@@ -61,7 +63,7 @@ pros::Imu imu(4);
 pros::Rotation horizRotation(3); //reverse angle  
 pros::adi::DigitalOut piston_1('a');
 Intake intake_motors({{&intake_motor_1, false},{&intake_motor_2, false}});
-Lift lift({{&lift_1, false}});
+Lift lift({{&lift_1, false}, {&lift_2, true}});
 piston claw_piston(piston_1);
 pros::Controller controller(pros::E_CONTROLLER_MASTER);  
 IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
@@ -73,11 +75,12 @@ PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLL
 
 
 //controllers
-PID residual_lateral_PID(0.95 * 1000,0,29*100,0,0);
+PID residual_lateral_PID(0.95 * 1000,0,26*100,0,0);
+//PID residual_lateral_PID(0 * 1000,0,0*100,0,0);
 PID angular_pid(26 * 1000.0,0,1457 * 100,0,0);
-
+PID cascade_lift_pid(0,0,0,0,0);
 velocity_feed_forward ff_lateral( 0.1384 * 1000,  // kV
-                          0, // kA is 0 because it doens't pull much weight
+                          0.024 * 1000, // kA is 0 because it doens't pull much weight
                           1.551 * 1000);  // kS
 
 velocity_feed_forward ff_angular(0.931 *1000,  // kV
@@ -96,7 +99,12 @@ ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default t
  */
 void initialize() {
 	pros::lcd::initialize();
-	
+
+	// TELEMETRY defaults to Mode::Wireless. Once an SD card is in the robot,
+	// switch to it like this (falls back to Wireless automatically if no
+	// card is detected, so this is safe to leave in even without one):
+	// TELEMETRY.setMode(Telemetry::Mode::SDCard, "telemetry_log.txt");
+
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
 	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
 	pros::lcd::set_text(1, "Hello PROS User!");
@@ -114,7 +122,7 @@ void initialize() {
 	// Conservative starting values for testing with no PID tuned yet.
 	// Theoretical max from gearing (~61 in/s) and characterized ff_lateral (~74 in/s);
 	// cruise_vel kept well under both so the motion doesn't outrun the feedforward model.
-	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 100.0}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
 	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 120.0}); // cruise_vel, final_vel, accel
 
 	chassis.set_speeds_angular(Speed::NORMAL, {15, 0.0, 22.0}); // cruise_vel, final_vel, accel
@@ -126,9 +134,9 @@ void initialize() {
 	// runs arcadeDrive on it - this is what makes teleop driving "just work"
 	// once CommandScheduler::run() is looping in opcontrol().
 	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
-	// CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
-	// CommandScheduler::registerSubsystem(&lift, &liftTeleop);
-	// CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);
+	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
+	CommandScheduler::registerSubsystem(&lift, &liftTeleop);
+	CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);
 }
 
 /**
@@ -153,7 +161,7 @@ void competition_initialize() {}
 void autonomous() {
 	//Sequence thing({chassis.moveToPoint(24, 24, Speed::NORMAL), chassis.rotate(90), chassis.moveToPoint(0, 48)});
 	//thing.schedule();
-	chassis.moveToPoint(32, 0)->schedule();
+	chassis.moveToPoint(50, 10)->schedule();
 	while(true){
     CommandScheduler::run();
     pros::delay(10);
@@ -172,13 +180,13 @@ void opcontrol() {
 
 	// chassis.setPose(0,0,0); //TODO remove this later. Temporarily here for testing.
 
-	//for obtaining KAV lateral vals
-	//DriveCharacterize kav(&chassis,2);
-	// DriveCharacterize kav(&chassis,ff_lateral.get_consts()[2]/1000.0, ff_lateral.get_consts()[0] / 1000.0);
+	// One combined test (slow ramp + hard bursts), one joint kS/kV/kA fit -
+	// see Commands/Tuning/DriveCharacterize. Replaces the old two-pass
+	// quasistatic-then-residual-kA workflow.
+	// DriveCharacterize kav(&chassis);
 	// CommandScheduler::schedule(&kav);
 
-	//AngularCharacterize ang(&chassis);
-	// AngularCharacterize ang(&chassis, ff_angular.get_consts()[2]/1000.0, ff_angular.get_consts()[0]/1000.0);
+	// AngularCharacterize ang(&chassis);
 	// CommandScheduler::schedule(&ang);
 
 	// FeedForwardTest ff_test(&chassis);
@@ -187,14 +195,18 @@ void opcontrol() {
 
 	// AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
 	//LateralPIDTune lateralTune(&chassis, 36, 10000);
-	
+
+
+	// LateralMotionDiagnostic motionDiag(&chassis, 70, /*usePID=*/true);
+	// motionDiag.schedule();
+
 
 	// UP/DOWN = +-1deg, LEFT/RIGHT = +-10deg dial in a rotate() target on the
 	// controller screen, Y runs it - see Commands/Tuning/RotateDialTest.
 	// RotateDialTest rotateDialTest(&chassis, &controller);
 	// rotateDialTest.schedule();
-	MoveToPointDialTest mp(&chassis, &controller);
-	mp.schedule();
+	// MoveToPointDialTest mp(&chassis, &controller);
+	// mp.schedule();
 
 	while(true){
 		CommandScheduler::run();
