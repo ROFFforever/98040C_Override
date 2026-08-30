@@ -169,9 +169,16 @@ void competition_initialize() {}
 
 
 void autonomous() {
+
+	//let down the toggle switcher
+	intake_motor_2.move_voltage(-12000);
+	pros::delay(450);
+		intake_motor_2.move_voltage(0);
+
 	(new Sequence({
 		first_alliance_pin(&chassis, &claw_piston, &lift),
-		get_second_pin(&chassis, &claw_piston, &lift)
+		// get_second_pin(&chassis, &claw_piston, &lift),
+		go_back_toggle(&chassis, &claw_piston, &lift)
 	}))->schedule();
 	while(true){
     CommandScheduler::run();

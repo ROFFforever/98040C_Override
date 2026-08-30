@@ -11,14 +11,14 @@ Sequence* first_alliance_pin(drivetrain* chassis, piston* piston, Lift* lift){
     //one-time setup: seed odometry to this auton's actual starting position on the
     //field, before the chain below ever runs - not a Sequence step, just a plain call
     chassis->setPose(-6.5, -61.3, degToRad(270));
-
     return new Sequence({
+        
         chassis->moveForward(15, true, 50),
         new WaitCommand(100),
         chassis->rotate(0, Speed::NORMAL),
         new Parallel({
             lift->moveToCommand(-1200),
-            chassis->moveToPoint(-15.4, -44.5, true, Speed::NORMAL, 1500, Units::AUTO)
+            chassis->moveToPoint(-15.4, -44.5, true, Speed::NORMAL, 1.5, Units::AUTO)
         }),
         chassis->rotate_to_point(-23.4, -44, true),
         lift->moveToCommand(500),
@@ -50,14 +50,17 @@ Sequence* get_second_pin(drivetrain* chassis, piston* piston, Lift* lift){
            lift->moveToCommand(100),
         new InstantCommand([piston]{ piston->toggle(); }),
         
-        new WaitCommand(100),
+    });
+}
+
+
+Sequence* go_back_toggle(drivetrain* chassis, piston* piston, Lift* lift){
+    return new Sequence(
+        {new WaitCommand(100),
         chassis->rotate(0),
         chassis->moveForward(15, false, 70),
           chassis->rotate(270),
         chassis->moveForward(33, false, 60, 1.2),
         chassis->moveForward(10, true, 60, 1),
-        chassis->moveForward(26, false, 60, 1),
-        
-        
-    });
+        chassis->moveForward(26, false, 60, 1)});
 }

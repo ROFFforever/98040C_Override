@@ -10,3 +10,4 @@
 //then schedule() the result from main.cpp's autonomous().
 Sequence* first_alliance_pin(drivetrain* chassis, piston* piston, Lift* lift);
 Sequence* get_second_pin(drivetrain* chassis, piston* piston, Lift* lift);
+Sequence* go_back_toggle(drivetrain* chassis, piston* piston, Lift* lift);
