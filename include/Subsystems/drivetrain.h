@@ -10,6 +10,7 @@
 #include "Controllers/PID.hpp"
 #include "Controllers/velocity_feed_forward.hpp"
 #include "CommandScheduler/Sequence.h"
+#include <functional>
 
 class Rotate; //Need to have in order to build factory methods
 class tank_motion_profile;
@@ -137,11 +138,26 @@ class drivetrain : public Subsystem{
     Rotate* rotate(double target_ang, Speed speed = Speed::NORMAL,
                     double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
 
-    tank_motion_profile* Tank_motion_profile(double x, double y, Speed speed = Speed::NORMAL, double max_time=Units::AUTO_TIME, double settle_range = Units::AUTO);
+    //Same as above, but target_ang_supplier(degrees) is called at initialize() instead of now -
+    //use this when the target depends on live pose(e.g. moveToPoint's heading-to-goal)
+    Rotate* rotate(std::function<double()> target_ang_supplier, Speed speed = Speed::NORMAL,
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+
+    //Factory method for turning to face a point (x,y) WITHOUT driving there - target heading is
+    //resolved lazily from live pose, same as moveToPoint's rotate step. backwards=true faces the
+    //robot's back toward the point instead of its front.
+    Rotate* rotate_to_point(double x, double y, bool backwards = false, Speed speed = Speed::NORMAL,
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+
+    tank_motion_profile* Tank_motion_profile(double x, double y, Speed speed = Speed::NORMAL, double max_time=Units::AUTO_TIME, double settle_range = Units::AUTO, bool backwards = false);
 
     //factory method that turns to the point and then moves toward it. Both using a trapazoidal motion profile
-    //Uses a sequence under the hood
-    Sequence* moveToPoint(double x, double y, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+    //Uses a sequence under the hood. backwards=true backs into the point instead of driving there nose-first.
+    Sequence* moveToPoint(double x, double y, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+
+    //Drives straight forward/backward `distance` inches relative to current position - no rotate step.
+    //Uses Speed::NORMAL's accel/final_vel shape but overrides cruise_vel with maxSpeed (inches/sec).
+    tank_motion_profile* moveForward(double distance, bool backwards, double maxSpeed, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
     void set_speeds_lateral(Speed speed, MotionParams params);
     void set_speeds_angular(Speed speed, MotionParams params);
 

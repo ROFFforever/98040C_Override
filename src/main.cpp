@@ -16,6 +16,8 @@
 #include "Commands/Tuning/FeedForwardTest.h"
 #include "Commands/Rotate.h"
 #include "Subsystems/Lift.h"
+#include "Commands/LiftMoveToCommand.h"
+#include "Autons/SoloAWP.h"
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
 #include "Commands/TeleopCommands/PistonTeleopCommand.h"
@@ -23,6 +25,7 @@
 
 #include "Commands/Tuning/AngularPIDTune.h"   // add near your other Commands includes
 #include "Commands/Tuning/LateralPIDTune.h"
+#include "Commands/Tuning/LiftPIDTune.h"
 #include "Commands/Tuning/RotateDialTest.h"
 #include "Commands/Tuning/MoveToPointDialTest.h"
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
@@ -63,7 +66,8 @@ pros::Imu imu(4);
 pros::Rotation horizRotation(3); //reverse angle  
 pros::adi::DigitalOut piston_1('a');
 Intake intake_motors({{&intake_motor_1, false},{&intake_motor_2, false}});
-Lift lift({{&lift_1, false}, {&lift_2, true}});
+PID cascade_lift_pid(140,0,0,0,0);
+Lift lift({{&lift_1, false}, {&lift_2, true}}, &cascade_lift_pid);
 piston claw_piston(piston_1);
 pros::Controller controller(pros::E_CONTROLLER_MASTER);  
 IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
@@ -78,7 +82,6 @@ PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLL
 PID residual_lateral_PID(0.95 * 1000,0,26*100,0,0);
 //PID residual_lateral_PID(0 * 1000,0,0*100,0,0);
 PID angular_pid(26 * 1000.0,0,1457 * 100,0,0);
-PID cascade_lift_pid(0,0,0,0,0);
 velocity_feed_forward ff_lateral( 0.1384 * 1000,  // kV
                           0.024 * 1000, // kA is 0 because it doens't pull much weight
                           1.551 * 1000);  // kS
@@ -107,6 +110,11 @@ void initialize() {
 
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
 	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
+	// Do NOT resetPosition() here - the lift has no limit switch/rotation sensor, so its
+	// only position reference IS the motor's own encoder count, which already persists
+	// across program restarts as long as the motor keeps power. Taring it on every
+	// initialize() would throw that reference away and re-zero wherever the lift happens
+	// to physically be sitting at the moment (which varies match to match).
 	pros::lcd::set_text(1, "Hello PROS User!");
 
 	// Blocks ~2s while the IMU's gyro/accel finish their startup calibration,
@@ -122,11 +130,13 @@ void initialize() {
 	// Conservative starting values for testing with no PID tuned yet.
 	// Theoretical max from gearing (~61 in/s) and characterized ff_lateral (~74 in/s);
 	// cruise_vel kept well under both so the motion doesn't outrun the feedforward model.
-	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
-	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 120.0}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_lateral(Speed::SLOW, {40.0, 0.0, 65.0}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 75.0}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
 
-	chassis.set_speeds_angular(Speed::NORMAL, {15, 0.0, 22.0}); // cruise_vel, final_vel, accel
-	chassis.set_speeds_angular(Speed::FAST, {13, 0.0, 20.0}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_angular(Speed::SLOW, {7, 0.0, 10}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_angular(Speed::NORMAL, {12, 0.0, 17.0}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_angular(Speed::FAST, {15, 0.0, 20.0}); // cruise_vel, final_vel, accel
 
 	chassis.angular_kS = 1910;
 
@@ -159,9 +169,10 @@ void competition_initialize() {}
 
 
 void autonomous() {
-	//Sequence thing({chassis.moveToPoint(24, 24, Speed::NORMAL), chassis.rotate(90), chassis.moveToPoint(0, 48)});
-	//thing.schedule();
-	chassis.moveToPoint(50, 10)->schedule();
+	(new Sequence({
+		first_alliance_pin(&chassis, &claw_piston, &lift),
+		get_second_pin(&chassis, &claw_piston, &lift)
+	}))->schedule();
 	while(true){
     CommandScheduler::run();
     pros::delay(10);
@@ -196,6 +207,13 @@ void opcontrol() {
 	// AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
 	//LateralPIDTune lateralTune(&chassis, 36, 10000);
 
+	// Step-response test for cascade_lift_pid (declared near the other
+	// controllers above, currently 0/0/0 - tune it here). targetDeg is a raw
+	// lift encoder angle, same units as lift.moveTo(). Prints ~30hz JSON
+	// (t, targetDeg, posDeg, errorDeg, mV) over TELEMETRY - see LiftPIDTune.
+	// LiftPIDTune liftPidTune(&lift, &cascade_lift_pid, -2300, 3000);
+	// liftPidTune.schedule();
+
 
 	// LateralMotionDiagnostic motionDiag(&chassis, 70, /*usePID=*/true);
 	// motionDiag.schedule();
@@ -214,6 +232,13 @@ void opcontrol() {
 		// if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X) && !angularTune.scheduled()){
 		// 	angularTune.schedule();
 		// }
+
+		// Hold the lift at its physical home position and tap Y to re-zero it there -
+		// its only position reference is the motor encoder, which drifts from that
+		// home point over a session of testing/direction changes.
+		if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_Y)){
+			lift.resetPosition();
+		}
 
 		pros::delay(10); //100hz
 	}

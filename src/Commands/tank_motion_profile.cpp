@@ -6,13 +6,23 @@
 double settle_range_config = 1.5; //1.5 inches is reasonable
 double heading_lock_distance = 6.0;
 
-tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time, double settle_range) {
+tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time, double settle_range, bool backwards) {
   this->x = x;
   this->y = y;
   this->constraints = constraints;
   this->drive = drive;
   this->max_time = max_time;
   this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
+  this->backwards = backwards;
+}
+
+tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double max_time, double settle_range, bool backwards) {
+  this->target_supplier = target_supplier;
+  this->constraints = constraints;
+  this->drive = drive;
+  this->max_time = max_time;
+  this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
+  this->backwards = backwards;
 }
 
 void tank_motion_profile::initialize() {
@@ -22,6 +32,13 @@ void tank_motion_profile::initialize() {
 
   // get start time
   start_time = pros::millis();
+
+  //resolve a live goal now(using current pose) instead of whatever was true when this command was constructed
+  if(target_supplier){
+    Pose target = target_supplier();
+    x = target.x;
+    y = target.y;
+  }
 
   // find linear 1d error first
   Pose curPos = drive->gpos();
@@ -41,7 +58,8 @@ void tank_motion_profile::initialize() {
     dirX = 0;
     dirY = 0;
   }
-  targetHeading = curPos.angle(goalPos);
+  // backwards: hold the rear-facing heading (angle-to-goal + 180deg) instead
+  targetHeading = curPos.angle(goalPos) + (backwards ? M_PI : 0.0);
 
   // create the trap prof
   if (constraints.init_vel == Units::CURRENT_VEL) {
@@ -57,9 +75,15 @@ void tank_motion_profile::initialize() {
 }
 
 void tank_motion_profile::execute() {
+  double curr_time = ((pros::millis() - start_time) / 1000.0);
+  if (curr_time > max_time) {
+    finished = true;
+    drive->set(0);
+    return;
+  }
+
   //get current vars
   double heading = drive->gpos().theta;
-  double curr_time = ((pros::millis() - start_time) / 1000.0);
   auto result = motion->calculate(curr_time);
 
   //get current position so we can use for residual PID - project live pose onto
@@ -70,9 +94,11 @@ void tank_motion_profile::execute() {
   double lateral_error = motion->getDist() - curr_pos;
 
   if (fabs(lateral_error) > heading_lock_distance) {
-    targetHeading = angleDifference(nowPos, x, y);
+    targetHeading = angleDifference(nowPos, x, y) + (backwards ? M_PI : 0.0);
   }
   double headingError = angleDifference(targetHeading, heading);
+
+  int dirSign = backwards ? -1 : 1; // backwards: negate translational voltage
 
   //Actual logic for moving straight there
   if (!result.has_value()) {
@@ -95,7 +121,7 @@ void tank_motion_profile::execute() {
       finished = true;
       drive->set(0); //stop drivetrain
     } else {
-      int mV = drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
+      int mV = dirSign * drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
       int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
       drive->setVoltageLeft(mV - turn_mv + sgn(mV) * drive->lateral_kS);
       drive->setVoltageRight(mV + turn_mv + sgn(mV) * drive->lateral_kS);
@@ -111,11 +137,11 @@ void tank_motion_profile::execute() {
     //set the KAV model
     double v = state.velocity;
     double a = state.acceleration;
-    int mV = drive->ff_lateral->update(v, a);
+    int mV = dirSign * drive->ff_lateral->update(v, a);
 
     //add in lateral residual PID and angular PID to correct heading
     int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
-    int residual = drive->residual_PID_lateral->update(curr_pos);
+    int residual = dirSign * drive->residual_PID_lateral->update(curr_pos);
 
     //apply voltages
     drive->setVoltageLeft(mV - turn_mv + residual);

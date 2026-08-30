@@ -13,12 +13,24 @@ Rotate::Rotate(double target_ang, drivetrain* drive, MotionParams params, double
     this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
 };
 
+Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, MotionParams params, double max_time, double settle_range){
+    this->target_supplier = target_supplier;
+    this->params=params;
+    this->drive=drive;
+    this->auto_time = (max_time == Units::AUTO_TIME);
+    this->max_time = auto_time ? 1.0 : max_time; //placeholder, resolved for real in initialize() once the profile exists
+    this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
+};
+
 void Rotate::initialize(){
     //reset so this command can be scheduled/run more than once
     finished = false;
     profile_over = false;
     exit_consecutive_counter = 0;
     drive->residual_angular_pid->reset();
+
+    //resolve a live target now(using current pose) instead of whatever was true when this Rotate was constructed
+    if(target_supplier) target_ang = degToRad(target_supplier());
 
     //create profile here instead of constructor
     initial_ang=drive->gpos().theta;

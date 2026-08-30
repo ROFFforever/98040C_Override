@@ -40,7 +40,7 @@ void MoveToPointDialTest::execute(){
         Pose pos = drive->gpos();
         startX = pos.x;
         startY = pos.y;
-        activeMove = drive->moveToPoint(startX + pendingDX, startY + pendingDY, Speed::NORMAL);
+        activeMove = drive->moveToPoint(startX + pendingDX, startY + pendingDY, false, Speed::NORMAL);
         activeMove->schedule();
         moving = true;
     }

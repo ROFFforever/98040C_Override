@@ -14,5 +14,6 @@ class PID{
     void reset(double seed_error = 0.0);
     void set_target(double target);
     double get_target();
+    bool isZero() const; //true if all gains are 0(treat as unconfigured)
 
 };

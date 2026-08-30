@@ -30,6 +30,7 @@ class piston : public Subsystem {
 
     //flips the current state (extended <-> retracted)
     void toggle();
+    void firePiston(bool state);
 
     bool isExtended() const;
 };

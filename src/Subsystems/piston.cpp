@@ -27,6 +27,10 @@ void piston::toggle(){
     set(!extended);
 }
 
+void piston::firePiston(bool state){
+    set(state);
+}
+
 bool piston::isExtended() const{
     return extended;
 }

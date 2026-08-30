@@ -5,11 +5,15 @@
 #include "CommandScheduler/command.h"
 #include "Subsystems/drivetrain.h"
 #include "Units.h"
+#include <functional>
 class tank_motion_profile : public Command{
     private:
-       
+
         double x,y,settle_range;
-        int max_time;
+        //if set, x/y are resolved from this at initialize() instead of the constructor's fixed values -
+        //use this when the goal itself depends on live pose(e.g. moveForward's "N inches from wherever I am")
+        std::function<Pose()> target_supplier;
+        double max_time;
         TrapezoidProfile* motion; //the actual motion to be ran
         drivetrain* drive;
         MotionParams constraints;
@@ -28,8 +32,11 @@ class tank_motion_profile : public Command{
         //check whether motion is finished
         bool finished=false;
 
+        bool backwards; //true if driving to (x,y) in reverse
+
     public:
-        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO);
+        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
+        tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
         void initialize() override;
         void execute() override;
         bool isFinished() override;

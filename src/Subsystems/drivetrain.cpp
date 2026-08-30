@@ -277,18 +277,46 @@ Rotate* drivetrain::rotate(double target_ang, Speed speed, double max_time, doub
     return new Rotate(target_ang, this, p, max_time, settle_range);
 }
 
-tank_motion_profile* drivetrain::Tank_motion_profile(double x, double y, Speed speed, double max_time, double settle_range){
+Rotate* drivetrain::rotate(std::function<double()> target_ang_supplier, Speed speed, double max_time, double settle_range){
+    MotionParams p = get_angular_params(speed);
+    return new Rotate(target_ang_supplier, this, p, max_time, settle_range);
+}
+
+tank_motion_profile* drivetrain::Tank_motion_profile(double x, double y, Speed speed, double max_time, double settle_range, bool backwards){
     MotionParams p = get_lateral_params(speed);
-    return new tank_motion_profile(this, x, y, p, max_time, settle_range);
+    return new tank_motion_profile(this, x, y, p, max_time, settle_range, backwards);
+}
+
+tank_motion_profile* drivetrain::moveForward(double distance, bool backwards, double maxSpeed, double max_time, double settle_range){
+    MotionParams p = get_lateral_params(Speed::NORMAL);
+    p.cruise_vel = maxSpeed;
+
+    //goal is resolved lazily(at initialize(), not here) since moveForward() itself runs whenever the
+    //enclosing Sequence is being BUILT - if this comes after other motions in a chain, the robot hasn't
+    //actually reached this point yet, so gpos() here would be stale/wrong (see moveToPoint's heading fix).
+    return new tank_motion_profile(this, [this, distance, backwards](){
+        Pose curPos = gpos();
+        double dir = backwards ? -1.0 : 1.0;
+        return Pose(curPos.x + dir * distance * std::cos(curPos.theta),
+                    curPos.y + dir * distance * std::sin(curPos.theta));
+    }, p, max_time, settle_range, backwards);
 }
 
 
-Sequence* drivetrain::moveToPoint(double x, double y, Speed speed, double max_time, double settle_range){
-    
-    //Create the two commands
-    double initial_target_heading = radToDeg(angleDifference(gpos(), x, y)); // Recalculate to stay pointed at target
-    Command* rotate_command = rotate(initial_target_heading);
-    Command* tank_motion_profile_command = Tank_motion_profile(x, y, speed, max_time, settle_range);
+Rotate* drivetrain::rotate_to_point(double x, double y, bool backwards, Speed speed, double max_time, double settle_range){
+    //Heading is resolved lazily(at the Rotate's initialize(), not here) since this factory runs whenever
+    //the enclosing Sequence is being BUILT - if it's nested after other motions in an outer Sequence, the
+    //robot hasn't actually reached this point yet, so gpos() here would be stale/wrong.
+    return rotate([this, x, y, backwards](){
+        return radToDeg(angleDifference(gpos(), x, y)) + (backwards ? 180.0 : 0.0);
+    }, speed, max_time, settle_range);
+}
+
+Sequence* drivetrain::moveToPoint(double x, double y, bool backwards, Speed speed, double max_time, double settle_range){
+
+    //Create the two commands.
+    Command* rotate_command = rotate_to_point(x, y, backwards);
+    Command* tank_motion_profile_command = Tank_motion_profile(x, y, speed, max_time, settle_range, backwards);
 
     //Create a sequence and return it
     return new Sequence({rotate_command, tank_motion_profile_command});

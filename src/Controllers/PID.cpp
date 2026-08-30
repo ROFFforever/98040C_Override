@@ -31,3 +31,7 @@ void PID::set_target(double target){
 double PID::get_target(){
     return target;
 }
+
+bool PID::isZero() const{
+    return kP == 0 && kI == 0 && kD == 0;
+}
