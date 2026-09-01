@@ -106,7 +106,7 @@ void initialize() {
 	// TELEMETRY defaults to Mode::Wireless. Once an SD card is in the robot,
 	// switch to it like this (falls back to Wireless automatically if no
 	// card is detected, so this is safe to leave in even without one):
-	// TELEMETRY.setMode(Telemetry::Mode::SDCard, "telemetry_log.txt");
+	TELEMETRY.setMode(Telemetry::Mode::SDCard, "telemetry_log.txt");
 
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
 	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
