@@ -83,7 +83,7 @@ double drivetrain::getAngle(){
     //flip angle to match mathematical format
     return degToRad(-imu->get_rotation());
 }
-int plugga = 0;
+
 void drivetrain::periodic(){
     if(update_pos()){
         update_velocities();
@@ -91,12 +91,8 @@ void drivetrain::periodic(){
         TELEMETRY.debug("MISSING SENSOR");
     }
 
-    plugga++;
-    if(plugga >= 3){
         TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
             pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
-        plugga = 0;
-    }
 }
 
 void drivetrain::setPctLeft(int pct){

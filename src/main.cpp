@@ -1,4 +1,5 @@
 #include "main.h"
+#include "RobotConfig.h"
 #include "Commands/TeleopCommands/LiftTeleopCommand.h"
 #include "Units.h"
 #include "Subsystems/drivetrain.h"
@@ -11,6 +12,7 @@
 #include "Controllers/velocity_feed_forward.hpp"
 #include "util/mathUtils.h"
 #include <cfenv>
+#include <cstdio>
 #include "Commands/Tuning/DriveCharacterize.h"
 #include "Telemetry/telemetry.h"
 #include "Commands/Tuning/FeedForwardTest.h"
@@ -30,53 +32,14 @@
 #include "Commands/Tuning/MoveToPointDialTest.h"
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
 
-//TEST ROBOT
-// pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
-// pros::MotorGroup rightMotors({-11, -12});
-// pros::Imu imu(10);         
-// pros::Rotation vertRotation(-16); //reverse angle   
-// pros::Rotation horizRotation(15); //reverse angle  
-// odom_wheel vert(&vertRotation, 1.25, 2.125);
-// odom_wheel horiz(&horizRotation, 0.75, 2.125);  
-//TEST ROBOT CONTROLLERS:
-//controllers
-// PID residual_lateral_PID(2.4 * 1000,0,70*100,0,0);
-// PID angular_pid(20 * 1000.0,0,120 * 1000,0,0);
-
-// velocity_feed_forward ff_lateral(0.14954251997144965 * 1000,  // kV
-//                           0, // kA is 0 because it doens't pull much weight
-//                           0.9570910152819988 * 1000);  // kS
-
-// velocity_feed_forward ff_angular(0.8995599372169607*1000,  // kV
-// 0.089*1000, // kA
-// 1.071431989714771 * 1000);  // kS  
-
-
-//NEW ROBOT STUFF:
-pros::Motor lift_1(5);
-pros::Motor lift_2(7);
-pros::Rotation vertRotation(6); //reverse angle   
+#ifdef ROBOT_MAIN
 pros::MotorGroup leftMotors({17, 20});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-18, -19});
-pros::Motor intake_motor_1(15);
-pros::Motor intake_motor_2(16);
+pros::Imu imu(4);
+pros::Rotation vertRotation(6); //reverse angle
+pros::Rotation horizRotation(3); //reverse angle
 odom_wheel vert(&vertRotation, -0.875, 2.125);
 odom_wheel horiz(nullptr, 0.75, 2.125);
-pros::Imu imu(4);
-pros::Rotation horizRotation(3); //reverse angle  
-pros::adi::DigitalOut piston_1('a');
-Intake intake_motors({{&intake_motor_1, false},{&intake_motor_2, false}});
-PID cascade_lift_pid(140,0,0,0,0);
-Lift lift({{&lift_1, false}, {&lift_2, true}}, &cascade_lift_pid);
-piston claw_piston(piston_1);
-pros::Controller controller(pros::E_CONTROLLER_MASTER);  
-IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
-LiftTeleopCommand liftTeleop(&lift, &controller, pros::E_CONTROLLER_DIGITAL_R2, pros::E_CONTROLLER_DIGITAL_R1);
-PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLLER_DIGITAL_A);
-
-
-
-
 
 //controllers
 PID residual_lateral_PID(0.95 * 1000,0,26*100,0,0);
@@ -90,10 +53,82 @@ velocity_feed_forward ff_angular(0.931 *1000,  // kV
 0.1025*1000, // kA
 1.91 * 1000);  // kS
 
+pros::Motor intake_motor_1(15);
+pros::Motor intake_motor_2(16);
+Intake intake_motors({{&intake_motor_1, false},{&intake_motor_2, false}});
+
+pros::adi::DigitalOut piston_1('a');
+piston claw_piston(piston_1);
+
+#ifdef HAS_LIFT
+pros::Motor lift_1(5);
+pros::Motor lift_2(7);
+PID cascade_lift_pid(140,0,0,0,0);
+Lift lift({{&lift_1, false}, {&lift_2, true}}, &cascade_lift_pid);
+#endif
+
+#else // ROBOT_TEST
+pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
+pros::MotorGroup rightMotors({-11, -12});
+pros::Imu imu(10);
+pros::Rotation vertRotation(-16); //reverse angle
+pros::Rotation horizRotation(15); //reverse angle
+odom_wheel vert(&vertRotation, 1.25, 2.125);
+odom_wheel horiz(&horizRotation, 0.75, 2.125);
+
+//controllers
+PID residual_lateral_PID(2.4 * 1000,0,70*100,0,0);
+PID angular_pid(20 * 1000.0,0,120 * 1000,0,0);
+
+velocity_feed_forward ff_lateral(0.14954251997144965 * 1000,  // kV
+                          0, // kA is 0 because it doens't pull much weight
+                          0.9570910152819988 * 1000);  // kS
+
+velocity_feed_forward ff_angular(0.8995599372169607*1000,  // kV
+0.089*1000, // kA
+1.071431989714771 * 1000);  // kS
+
+// Test robot currently has no intake, claw piston, or lift installed - just drivetrain.
+#endif
+
+pros::Controller controller(pros::E_CONTROLLER_MASTER);
+
+#ifdef HAS_LIFT
+LiftTeleopCommand liftTeleop(&lift, &controller, pros::E_CONTROLLER_DIGITAL_R2, pros::E_CONTROLLER_DIGITAL_R1);
+#endif
+#ifdef ROBOT_MAIN
+IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
+PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLLER_DIGITAL_A);
+#endif
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
 
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
+// Every run gets a unique, ever-increasing ID by reading+incrementing a
+// single number stored on the SD card at /usd/run_id.txt. If the card isn't
+// in, or this is the first run ever (no file yet), starts counting at 1.
+// The PC-side auto_record.py listener matches this same ID to the video it
+// starts recording, so the two end up paired by name after the run.
+int nextRunId() {
+	int id = 0;
+	if (pros::usd::is_installed()) {
+		std::FILE* f = std::fopen("/usd/run_id.txt", "r");
+		if (f) {
+			std::fscanf(f, "%d", &id);
+			std::fclose(f);
+		}
+	}
+	id += 1;
+	if (pros::usd::is_installed()) {
+		std::FILE* f = std::fopen("/usd/run_id.txt", "w");
+		if (f) {
+			std::fprintf(f, "%d", id);
+			std::fclose(f);
+		}
+	}
+	return id;
+}
+
 /**
  * Runs initialization code. This occurs as soon as the program is started.
  *
@@ -101,12 +136,23 @@ ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default t
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
+	int runId = nextRunId();
+	// Sent as the very first thing, over the same wireless USB link
+	// auto_record.py listens on - by the time chassis.calibrateIMU() below
+	// finishes blocking (~2s), that script has had the whole window to see
+	// this and get the camera recording before autonomous() ever moves the
+	// chassis. This is a one-off trigger line, not a TELEMETRY.send() call,
+	// because TELEMETRY may be pointed at the SD card below instead of
+	// wireless - this always goes out over USB regardless of that.
+	printf("RUN_ID:%d\n", runId);
+	fflush(stdout);
+
 	pros::lcd::initialize();
 
-	// TELEMETRY defaults to Mode::Wireless. Once an SD card is in the robot,
-	// switch to it like this (falls back to Wireless automatically if no
-	// card is detected, so this is safe to leave in even without one):
-	TELEMETRY.setMode(Telemetry::Mode::SDCard, "telemetry_log.txt");
+	// The rest of this run's telemetry (position, etc.) goes to its own
+	// SD-card file, named to match the video auto_record.py just started -
+	// falls back to Wireless automatically if no card is detected.
+	TELEMETRY.setMode(Telemetry::Mode::SDCard, "run_" + std::to_string(runId) + ".ndjson");
 
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
 	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
@@ -144,9 +190,13 @@ void initialize() {
 	// runs arcadeDrive on it - this is what makes teleop driving "just work"
 	// once CommandScheduler::run() is looping in opcontrol().
 	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
+#ifdef ROBOT_MAIN
 	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
-	CommandScheduler::registerSubsystem(&lift, &liftTeleop);
 	CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);
+#endif
+#ifdef HAS_LIFT
+	CommandScheduler::registerSubsystem(&lift, &liftTeleop);
+#endif
 }
 
 /**
@@ -169,7 +219,7 @@ void competition_initialize() {}
 
 
 void autonomous() {
-
+#ifdef HAS_LIFT
 	//let down the toggle switcher
 	intake_motor_2.move_voltage(-12000);
 	pros::delay(450);
@@ -184,6 +234,12 @@ void autonomous() {
     CommandScheduler::run();
     pros::delay(10);
 	}
+#else
+	// No test-robot autonomous routine written yet - the one above needs the
+	// lift/claw/intake this robot doesn't have. Add a drivetrain-only
+	// Sequence here (chassis->moveToPoint/rotate/... - see SoloAWP.cpp for
+	// the pattern) once you have one to test.
+#endif
 }
 
 
@@ -243,9 +299,11 @@ void opcontrol() {
 		// Hold the lift at its physical home position and tap Y to re-zero it there -
 		// its only position reference is the motor encoder, which drifts from that
 		// home point over a session of testing/direction changes.
+#ifdef HAS_LIFT
 		if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_Y)){
 			lift.resetPosition();
 		}
+#endif
 
 		pros::delay(10); //100hz
 	}
