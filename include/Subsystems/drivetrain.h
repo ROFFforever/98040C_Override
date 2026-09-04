@@ -52,6 +52,11 @@ class drivetrain : public Subsystem{
         double prevLeftDist = 0;
         double prevRightDist = 0;
 
+        double prevDriveDist = 0;
+        bool driveDistInitialized = false;
+
+        double getForwardDelta();
+
         // Lateral velocity: raw single-tick delta of the primary drive-direction
         // odom reading (or, with no dead wheel, averaged L/R motor distance),
         // divided by measured dt - one differentiation of a single sensor
@@ -103,9 +108,6 @@ class drivetrain : public Subsystem{
     //heading abiding to standard conventions(flips angle because vex does compass style)
     double getAngle();
     
-    // Reads sensors and updates the tracked pose for this tick.
-    // Returns false (pos left unchanged) if a required dead wheel is missing,
-    // true otherwise.
     bool update_pos();
 
     Pose gpos(); //get pose of robot
@@ -125,6 +127,7 @@ class drivetrain : public Subsystem{
     //these are here for backup tracking in case dead wheel isn't available
     double getLeftDistance();  // total inches the left side has rolled since motor init/tare
     double getRightDistance(); // total inches the right side has rolled since motor init/tare
+    double getDriveDistance(); // average of left+right motor distance (inches)
     int get_voltage_all(); // average voltage (mV) across all left+right motors
     int get_angular_voltage(); // (left - right)/2 (mV) - isolates rotational voltage, matches +turn = +left/-right convention
 

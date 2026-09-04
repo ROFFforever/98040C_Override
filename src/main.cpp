@@ -137,13 +137,7 @@ int nextRunId() {
  */
 void initialize() {
 	int runId = nextRunId();
-	// Sent as the very first thing, over the same wireless USB link
-	// auto_record.py listens on - by the time chassis.calibrateIMU() below
-	// finishes blocking (~2s), that script has had the whole window to see
-	// this and get the camera recording before autonomous() ever moves the
-	// chassis. This is a one-off trigger line, not a TELEMETRY.send() call,
-	// because TELEMETRY may be pointed at the SD card below instead of
-	// wireless - this always goes out over USB regardless of that.
+	//a message for the recording script to start
 	printf("RUN_ID:%d\n", runId);
 	fflush(stdout);
 

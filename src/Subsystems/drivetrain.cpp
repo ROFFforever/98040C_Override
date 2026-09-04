@@ -64,6 +64,22 @@ double drivetrain::getRightDistance() {
     return avgRotations * (wheel_diamter * M_PI) * gearRatio;
 }
 
+double drivetrain::getDriveDistance() {
+    return (getLeftDistance() + getRightDistance()) / 2.0;
+}
+
+double drivetrain::getForwardDelta() {
+    if (vert_odom != nullptr && vert_odom->odom_sensor != nullptr) {
+        return vert_odom->get_dist_delta();
+    }
+
+    double dist = getDriveDistance();
+    double delta = driveDistInitialized ? (dist - prevDriveDist) : 0.0;
+    prevDriveDist = dist;
+    driveDistInitialized = true;
+    return delta;
+}
+
 void drivetrain::calibrateIMU(){
     if(imu == nullptr) return;
 
@@ -117,35 +133,32 @@ bool drivetrain::update_pos(){
     //rotate the chord x and y onto the global frame(rotational matrix)
     //standard mathematical model for angles(positive x = 0 degrees; Increasing angles = counter clockwise)
 
-    //If missing any dead wheel don't track(probably in the middle of rebuilding or something)
-    int8_t missing_sensors = 0;
-
     //raw theta in rads, already flipped to counterclockwise-positive by getAngle()
     double rawTheta = getAngle();
 
     //find change in positional values
     //vert wheel rolls along the drive direction -> robot-forward = local +x
     //horiz wheel rolls sideways -> robot-left = local +y
-    double delta_forward = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr) ? vert_odom->get_dist_delta() : missing_sensors++;
-    double delta_left = (horiz_odom != nullptr && horiz_odom->odom_sensor != nullptr) ? horiz_odom->get_dist_delta() : missing_sensors++;
+    double delta_forward = getForwardDelta();
+    double delta_left = (horiz_odom != nullptr && horiz_odom->odom_sensor != nullptr) ? horiz_odom->get_dist_delta() : 0.0;
     double delta_theta = angleDifference(rawTheta, pos.theta);
 
-    //don't track cuz we don't have the sensors to do so
-    if(missing_sensors > 1) return false;
-    
     //update current robot heading
     pos.theta = rawTheta;
 
-    //find change in the local frame by calculating delta x y of chord created by dead wheel and imu delta 
+    //find change in the local frame by calculating delta x y of chord created by dead wheel and imu delta
     double local_x, local_y;
+
+    double forward_offset = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr) ? vert_odom->offset : 0.0;
+    double left_offset = (horiz_odom != nullptr && horiz_odom->odom_sensor != nullptr) ? horiz_odom->offset : 0.0;
 
     //if angle hasn't changed then must be linear
     if(delta_theta == 0){
         local_x = delta_forward;
         local_y = delta_left;
     }else{ //if angle has changed do chord math
-    local_x = 2 * std::sin(delta_theta / 2) * (delta_forward / delta_theta + vert_odom->offset);
-    local_y = 2 * std::sin(delta_theta / 2) * (delta_left / delta_theta + horiz_odom->offset);
+    local_x = 2 * std::sin(delta_theta / 2) * (delta_forward / delta_theta + forward_offset);
+    local_y = 2 * std::sin(delta_theta / 2) * (delta_left / delta_theta + left_offset);
     }
     
     //global x and y(rotate the vector)
@@ -170,7 +183,7 @@ void drivetrain::update_velocities(){
     // through. Falls back to averaged motor distance if there's no dead wheel.
     double rawDist = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr)
                           ? vert_odom->current_val
-                          : (getLeftDistance() + getRightDistance()) / 2.0;
+                          : getDriveDistance();
 
     if(lastVelTickTime == 0){
         lastVel = 0;
