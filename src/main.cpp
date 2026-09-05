@@ -70,7 +70,7 @@ Lift lift({{&lift_1, false}, {&lift_2, true}}, &cascade_lift_pid);
 #else // ROBOT_TEST
 pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-11, -12});
-pros::Imu imu(10);
+pros::Imu imu(13);
 pros::Rotation vertRotation(-16); //reverse angle
 pros::Rotation horizRotation(15); //reverse angle
 odom_wheel vert(&vertRotation, 1.25, 2.125);
@@ -136,6 +136,17 @@ int nextRunId() {
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
+	// Runs forever, independent of autonomous/opcontrol/disabled, so the
+	// camera-tracking script on the PC can tell the program is still alive by
+	// its absence rather than needing a signal on every possible exit path.
+	pros::Task([]{
+		while (true) {
+			printf("heartbeat\n");
+			fflush(stdout);
+			pros::delay(500);
+		}
+	}, "Heartbeat");
+
 	int runId = nextRunId();
 	//a message for the recording script to start
 	printf("RUN_ID:%d\n", runId);
