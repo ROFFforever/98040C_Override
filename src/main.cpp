@@ -23,6 +23,7 @@
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
 #include "Commands/TeleopCommands/PistonTeleopCommand.h"
+#include "Subsystems/WallSensor.h"
 
 
 #include "Commands/Tuning/AngularPIDTune.h"   // add near your other Commands includes
@@ -48,6 +49,8 @@ PID angular_pid(26 * 1000.0,0,1457 * 100,0,0);
 velocity_feed_forward ff_lateral( 0.1384 * 1000,  // kV
                           0.024 * 1000, // kA is 0 because it doens't pull much weight
                           1.551 * 1000);  // kS
+						
+
 
 velocity_feed_forward ff_angular(0.931 *1000,  // kV
 0.1025*1000, // kA
@@ -101,14 +104,17 @@ IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER
 PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLLER_DIGITAL_A);
 #endif
 
+
+WallSensor test_wall_sensor(14, 0,0, WallSensor::Side::FRONT);
+
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
 
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
-// Every run gets a unique, ever-increasing ID by reading+incrementing a
-// single number stored on the SD card at /usd/run_id.txt. If the card isn't
-// in, or this is the first run ever (no file yet), starts counting at 1.
-// The PC-side auto_record.py listener matches this same ID to the video it
-// starts recording, so the two end up paired by name after the run.
+
+
+//In order to sync run video with program runtime data, we send a number wirelessly over telemetry.
+//This number tells the computer what to name the video file so the right run + video can be synced
+//specifically this function reads a file in the sd card in order to track what run it should be.
 int nextRunId() {
 	int id = 0;
 	if (pros::usd::is_installed()) {
@@ -136,9 +142,8 @@ int nextRunId() {
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
-	// Runs forever, independent of autonomous/opcontrol/disabled, so the
-	// camera-tracking script on the PC can tell the program is still alive by
-	// its absence rather than needing a signal on every possible exit path.
+	//infinite loop which sends a heartbeat to the camera recording software.
+	//once the heartbeat stops for a few seconds, it stops recording.
 	pros::Task([]{
 		while (true) {
 			printf("heartbeat\n");
@@ -148,39 +153,31 @@ void initialize() {
 	}, "Heartbeat");
 
 	int runId = nextRunId();
-	//a message for the recording script to start
+	//a message for the recording script to start(provides run ID)
 	printf("RUN_ID:%d\n", runId);
 	fflush(stdout);
 
 	pros::lcd::initialize();
 
-	// The rest of this run's telemetry (position, etc.) goes to its own
-	// SD-card file, named to match the video auto_record.py just started -
-	// falls back to Wireless automatically if no card is detected.
+	//Sets mode to SD card based logging. It's enables faster writes, is more reliable, and is persistent 
+	//compared to wireless logging
 	TELEMETRY.setMode(Telemetry::Mode::SDCard, "run_" + std::to_string(runId) + ".ndjson");
 
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
 	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
-	// Do NOT resetPosition() here - the lift has no limit switch/rotation sensor, so its
-	// only position reference IS the motor's own encoder count, which already persists
-	// across program restarts as long as the motor keeps power. Taring it on every
-	// initialize() would throw that reference away and re-zero wherever the lift happens
-	// to physically be sitting at the moment (which varies match to match).
+	
 	pros::lcd::set_text(1, "Hello PROS User!");
 
 	// Blocks ~2s while the IMU's gyro/accel finish their startup calibration,
-	// so nothing downstream (odom, telemetry) reads garbage headings before
-	// the sensor is actually ready.
+	// waits until sensor ready basically before feeding ODOM calculations etc.
+	//picked this tip up from Lemlib's library.
 	chassis.calibrateIMU();
 
-	// Coast is the PROS default; without this, cutting voltage to 0 at the end of a
-	// motion lets momentum carry the robot further (coast-through overshoot).
+
 	leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_BRAKE);
 	rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_BRAKE);
 
-	// Conservative starting values for testing with no PID tuned yet.
-	// Theoretical max from gearing (~61 in/s) and characterized ff_lateral (~74 in/s);
-	// cruise_vel kept well under both so the motion doesn't outrun the feedforward model.
+	//set motion params for KAV model
 	chassis.set_speeds_lateral(Speed::SLOW, {40.0, 0.0, 65.0}); // cruise_vel, final_vel, accel
 	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 75.0}); // cruise_vel, final_vel, accel
 	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
@@ -191,9 +188,7 @@ void initialize() {
 
 	chassis.angular_kS = 1910;
 
-	// From now on, whenever nothing else has claimed myDrive, the scheduler
-	// runs arcadeDrive on it - this is what makes teleop driving "just work"
-	// once CommandScheduler::run() is looping in opcontrol().
+	//drive command
 	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
 #ifdef ROBOT_MAIN
 	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
@@ -240,10 +235,7 @@ void autonomous() {
     pros::delay(10);
 	}
 #else
-	// No test-robot autonomous routine written yet - the one above needs the
-	// lift/claw/intake this robot doesn't have. Add a drivetrain-only
-	// Sequence here (chassis->moveToPoint/rotate/... - see SoloAWP.cpp for
-	// the pattern) once you have one to test.
+	//nothing here since test bot no have any formal auton
 #endif
 }
 
@@ -256,6 +248,10 @@ void opcontrol() {
 	// into teleop and making the drivetrain grab when the sticks are released.
 	leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
 	rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+
+	//ALL OF THE BELOW ARE SIMPLY CONFIG/TUNING TESTS:
+
+	// {
 
 	// chassis.setPose(0,0,0); //TODO remove this later. Temporarily here for testing.
 
@@ -293,6 +289,8 @@ void opcontrol() {
 	// rotateDialTest.schedule();
 	// MoveToPointDialTest mp(&chassis, &controller);
 	// mp.schedule();
+
+	// }
 
 	while(true){
 		CommandScheduler::run();

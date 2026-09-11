@@ -47,7 +47,8 @@ void Telemetry::send(const std::string& data) {
                      // sit in the buffer instead of actually going out
 }
 
-void Telemetry::debug(const std::string& message) {
+namespace {
+std::string escapeForJson(const std::string& message) {
     std::string escaped;
     escaped.reserve(message.size());
 
@@ -62,5 +63,19 @@ void Telemetry::debug(const std::string& message) {
         }
     }
 
-    send("{\"debug\": \"" + escaped + "\"}\n");
+    return escaped;
+}
+}
+
+void Telemetry::debug(const std::string& message) {
+    send("{\"debug\": \"" + escapeForJson(message) + "\"}\n");
+}
+
+void Telemetry::sendWireless(const std::string& data) {
+    printf("%s", data.c_str());
+    fflush(stdout);
+}
+
+void Telemetry::debugWireless(const std::string& message) {
+    sendWireless("{\"debug\": \"" + escapeForJson(message) + "\"}\n");
 }

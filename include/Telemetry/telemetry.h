@@ -41,6 +41,19 @@ public:
      */
     void debug(const std::string& message);
 
+    /**
+     * Same as send(), but always goes out over the USB debug link no matter
+     * what setMode() is currently set to - and doesn't touch mode_, so it
+     * doesn't affect any other code's send()/debug() calls either.
+     */
+    void sendWireless(const std::string& data);
+
+    /**
+     * Same as debug(), but always goes out over the USB debug link no matter
+     * what setMode() is currently set to.
+     */
+    void debugWireless(const std::string& message);
+
 private:
     Mode mode_ = Mode::Wireless;
     std::FILE* file_ = nullptr;
