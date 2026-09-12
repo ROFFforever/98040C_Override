@@ -32,7 +32,7 @@ drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMoto
     this-> residual_angular_pid = angular_pid;
 }
 
-drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral) {
+drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral, bool telemetryEnabled) {
     this->leftMotors = leftMotors;
     this->rightMotors = rightMotors;
     this->imu = imu;
@@ -44,6 +44,7 @@ drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMoto
     this->ff_lateral=ff_lateral;
     this->ff_angular=ff_angular;
     this->residual_PID_lateral=residual_PID_lateral;
+    this->telemetryEnabled=telemetryEnabled;
 }
 
 double drivetrain::getLeftDistance() {
@@ -107,8 +108,10 @@ void drivetrain::periodic(){
         TELEMETRY.debug("MISSING SENSOR");
     }
 
+    if(telemetryEnabled){
         TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
             pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
+        }
 }
 
 void drivetrain::setPctLeft(int pct){

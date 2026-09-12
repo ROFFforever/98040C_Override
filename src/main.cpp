@@ -105,7 +105,7 @@ PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLL
 #endif
 
 
-WallSensor test_wall_sensor(14, 0,0, WallSensor::Side::FRONT);
+WallSensor test_wall_sensor(14, 0,0, WallSensor::Side::BACK);
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
 
@@ -190,6 +190,7 @@ void initialize() {
 
 	//drive command
 	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
+	CommandScheduler::registerSubsystem(&test_wall_sensor, nullptr);
 #ifdef ROBOT_MAIN
 	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
 	CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);

@@ -56,7 +56,6 @@ public:
         CommandScheduler& instance = getInstance();
 
         assert(!instance.subsystems.contains(subsystem));
-        assert(default_command != nullptr);
 
         instance.subsystems[subsystem] = default_command;
     }

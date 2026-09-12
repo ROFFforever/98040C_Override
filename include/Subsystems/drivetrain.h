@@ -95,7 +95,7 @@ class drivetrain : public Subsystem{
     //simple drivetrain without odom tracking(manually track with drive)
     drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, PID* angular_pid);
     //Drivetrain with basic odom, if don't have a dead wheel, set nullptr
-    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral);
+    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral, bool telemetryEnabled = true);
     
     void periodic() override; //put localization in here
     //-127/127
@@ -107,6 +107,7 @@ class drivetrain : public Subsystem{
 
     //heading abiding to standard conventions(flips angle because vex does compass style)
     double getAngle();
+    bool telemetryEnabled=true;
     
     bool update_pos();
 

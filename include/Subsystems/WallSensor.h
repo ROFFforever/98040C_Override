@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Telemetry/telemetry.h"
 #include "CommandScheduler/subsystem.h"
 #include "pros/distance.hpp"
 
