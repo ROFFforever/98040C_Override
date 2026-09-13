@@ -73,6 +73,8 @@ Lift lift({{&lift_1, false}, {&lift_2, true}}, &cascade_lift_pid);
 #else // ROBOT_TEST
 pros::MotorGroup leftMotors({18, 20});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({-11, -12});
+// pros::MotorGroup leftMotors({-1, 2,-3});   // port numbers; negative = reversed
+// pros::MotorGroup rightMotors({4, -5,6});
 pros::Imu imu(13);
 pros::Rotation vertRotation(-16); //reverse angle
 pros::Rotation horizRotation(15); //reverse angle

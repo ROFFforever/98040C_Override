@@ -32,6 +32,8 @@ public:
     static constexpr int LATERAL_TUNING = 1243;
 
     static constexpr int AUTO = 1538931;
+
+    static constexpr int OLD_READING = -2136335;
 };
 
 struct MotionParams{

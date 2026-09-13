@@ -243,6 +243,8 @@ int drivetrain::get_angular_voltage(){
     double rightAvg = rightSum / rightVoltages.size();
     return (int)((rightAvg - leftAvg) / 2.0); //millivolts
 }
+
+//returns angle in radians :)
 Pose drivetrain::gpos(){
     return this->pos;
 }
