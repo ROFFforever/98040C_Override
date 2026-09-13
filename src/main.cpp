@@ -24,6 +24,7 @@
 #include "Commands/Tuning/AngularCharacterize.h"
 #include "Commands/TeleopCommands/PistonTeleopCommand.h"
 #include "Subsystems/WallSensor.h"
+#include "Commands/Localization/WallLocalization.h"
 
 
 #include "Commands/Tuning/AngularPIDTune.h"   // add near your other Commands includes
@@ -107,10 +108,14 @@ PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLL
 #endif
 
 
-WallSensor test_wall_sensor(14, 0,0, WallSensor::Side::BACK);
+WallSensor back_wall_sensor(14, -2.99f, 10.19f,  WallSensor::Side::BACK);
+WallSensor left_wall_sensor(19, 0, 0,  WallSensor::Side::LEFT);
+WallSensor front_wall_sensor(17, 0, 0,  WallSensor::Side::FRONT);
+WallSensor right_wall_sensor(4, 0, 0,  WallSensor::Side::RIGHT);
+
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
-
+WallLocalization wallLocalization({&back_wall_sensor}, &chassis);
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
 
 
@@ -146,13 +151,15 @@ int nextRunId() {
 void initialize() {
 	//infinite loop which sends a heartbeat to the camera recording software.
 	//once the heartbeat stops for a few seconds, it stops recording.
-	pros::Task([]{
-		while (true) {
-			printf("heartbeat\n");
-			fflush(stdout);
-			pros::delay(500);
-		}
-	}, "Heartbeat");
+
+	//TODO UNDO THIS
+	// pros::Task([]{
+	// 	while (true) {
+	// 		printf("heartbeat\n");
+	// 		fflush(stdout);
+	// 		pros::delay(500);
+	// 	}
+	// }, "Heartbeat");
 
 	int runId = nextRunId();
 	//a message for the recording script to start(provides run ID)
@@ -192,7 +199,10 @@ void initialize() {
 
 	//drive command
 	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
-	CommandScheduler::registerSubsystem(&test_wall_sensor, nullptr);
+	CommandScheduler::registerSubsystem(&back_wall_sensor, nullptr);
+	CommandScheduler::registerSubsystem(&front_wall_sensor, nullptr);
+	CommandScheduler::registerSubsystem(&left_wall_sensor, nullptr);
+	CommandScheduler::registerSubsystem(&right_wall_sensor, nullptr);
 #ifdef ROBOT_MAIN
 	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
 	CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);
@@ -295,9 +305,23 @@ void opcontrol() {
 
 	// }
 
+	int counter = 0;
+
 	while(true){
 		CommandScheduler::run();
+		counter++;
 
+		if(counter == 10){
+		double theta = radToDeg(chassis.gpos().theta);
+        double d = wallLocalization.get_dist_from_wall(WallSensor::Side::BACK, radToDeg(chassis.gpos().theta));
+        TELEMETRY.debugWireless(std::format("theta: {:.1f}  dist_from_wall: {:.2f}", theta, d));
+
+        // std::int32_t objSize = test_wall_sensor.sensor->get_object_size();
+        // std::int32_t confidence = test_wall_sensor.sensor->get_confidence();
+        // TELEMETRY.debugWireless(std::format("dist sensor - object size: {}  confidence: {}", objSize, confidence));
+
+		counter=0;
+		}
 		// if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X) && !angularTune.scheduled()){
 		// 	angularTune.schedule();
 		// }

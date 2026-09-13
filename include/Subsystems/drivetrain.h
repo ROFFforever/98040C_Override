@@ -113,7 +113,8 @@ class drivetrain : public Subsystem{
 
     Pose gpos(); //get pose of robot
     void setPose(double x, double y, double theta); //theta in radians
-
+    void setPose(double x, double y); //set just x and y
+    
     void setPctLeft(int percent);
     void setPctRight(int percent);
     //set milli voltage of both sides of drivetrain

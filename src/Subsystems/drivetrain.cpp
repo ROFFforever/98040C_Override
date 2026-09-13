@@ -209,6 +209,10 @@ void drivetrain::setPose(double x, double y, double theta){
     pos.theta=theta;
     imu->set_rotation(-radToDeg(theta));
 }
+void drivetrain::setPose(double x, double y){
+    pos.x=x;
+    pos.y=y;
+}
 
 void drivetrain::arcade(int throttle, int turn){
     int leftPct = throttle + turn;

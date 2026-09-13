@@ -16,6 +16,12 @@ class WallSensor : public Subsystem {
     //returns distance in inches
     float getDist();
 
+    std::int32_t getConfidence();
+    std::int32_t getObjectSize();
+    bool isObviouslyBad();
+
+    //Horizontal offset is negative if it's right from robot center.
+    //Vertical offset is always positive
     float horizOffset;
     float vertOffset;
     const Side side;

@@ -24,8 +24,8 @@ class WallLocalization : public Command {
 
     public:
     WallLocalization(std::vector<WallSensor*> sensors, drivetrain* chassis) : sensors(sensors), chassis(chassis) {}
-    WallSensor::Side get_side_facing_front(); //finds which side robot is currently facing
-    double get_dist_from_wall(WallSensor::Side side); //finds distance to wall accounting for offsets of distance sensor from absolute center
+    WallSensor::Side get_side_facing_front(float globalTheta); //finds which side robot is currently facing
+    double get_dist_from_wall(WallSensor::Side side, float globalTheta); //finds distance to wall accounting for offsets of distance sensor from absolute center
     WallSensor* find_sensor(WallSensor::Side side); //returns sensor of that side(we will only ever use a max of one sensor per side)
     /**
      * @brief resets robot if safe using appropiate distance sensors
