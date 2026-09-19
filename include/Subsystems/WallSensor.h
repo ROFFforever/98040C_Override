@@ -20,7 +20,7 @@ class WallSensor : public Subsystem {
     std::int32_t getObjectSize();
     bool isObviouslyBad();
 
-    //Horizontal offset is negative if it's right from robot center.
+    //Horizontal offset is positive if it's right from robot center.
     //Vertical offset is always positive
     float horizOffset;
     float vertOffset;

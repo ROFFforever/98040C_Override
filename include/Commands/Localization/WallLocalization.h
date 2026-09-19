@@ -21,9 +21,14 @@ class WallLocalization : public Command {
     std::vector<WallSensor*> sensors;
     drivetrain* chassis;
     int lastResetTime=0;
+    bool telemetryEnabled=true;
+
+    void apply_axis(float& val, WallSensor::Side side, const char* axisName, float globalTheta, float bias_rate, bool override_checks, int now);
 
     public:
-    WallLocalization(std::vector<WallSensor*> sensors, drivetrain* chassis) : sensors(sensors), chassis(chassis) {}
+    enum class Quadrant { PosXPosY, PosXNegY, NegXPosY, NegXNegY };
+
+    WallLocalization(std::vector<WallSensor*> sensors, drivetrain* chassis, bool telemetryEnabled = true) : sensors(sensors), chassis(chassis), telemetryEnabled(telemetryEnabled) {}
     WallSensor::Side get_side_facing_front(float globalTheta); //finds which side robot is currently facing
     double get_dist_from_wall(WallSensor::Side side, float globalTheta); //finds distance to wall accounting for offsets of distance sensor from absolute center
     WallSensor* find_sensor(WallSensor::Side side); //returns sensor of that side(we will only ever use a max of one sensor per side)
@@ -33,6 +38,7 @@ class WallLocalization : public Command {
      * @param override_checks Set this to true if you want to disable checking(you are confident it will reset correctly)
      */
     void reset_pose(float bias_rate=0.6,bool override_checks=false);
+    bool set_initial_pose(float headingDeg, Quadrant quadrant);
     void initialize() override;
     void execute() override;
     bool isFinished() override;

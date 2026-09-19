@@ -11,9 +11,10 @@ WallSensor::WallSensor(int port, float horizOffset, float vertOffset, Side side)
 
 void WallSensor::periodic()
 {
-    TELEMETRY.send(std::format("{{\"t\": {}, \"dist\": {}, \"confidence\": {}, \"object_size\": {}, \"TYPE\": {}, \"port\": {}}}\n",
-            pros::millis(), getDist(), getConfidence(), getObjectSize(), (side == Side::BACK ? 0 : (side == Side::FRONT ? 1 : (side == Side::LEFT ? 2 : 3))),
-            sensor->get_port())); //send raw wall sensor data
+    // //dont need this right now
+    // TELEMETRY.send(std::format("{{\"t\": {}, \"dist\": {}, \"confidence\": {}, \"object_size\": {}, \"TYPE\": {}, \"port\": {}}}\n",
+    //         pros::millis(), getDist(), getConfidence(), getObjectSize(), (side == Side::BACK ? 0 : (side == Side::FRONT ? 1 : (side == Side::LEFT ? 2 : 3))),
+    //         sensor->get_port())); //send raw wall sensor data
 }
 
 //returns 9999 from PROS if out of range.

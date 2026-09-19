@@ -1,8 +1,21 @@
 #include "WallLocalization.h"
 #include "util/mathUtils.h"
 #include "pros/error.h"
+#include "Telemetry/telemetry.h"
 #include <cmath>
+#include <format>
 
+namespace {
+const char* sideToStr(WallSensor::Side side){
+    switch(side){
+        case WallSensor::Side::BACK:  return "BACK";
+        case WallSensor::Side::LEFT:  return "LEFT";
+        case WallSensor::Side::FRONT: return "FRONT";
+        case WallSensor::Side::RIGHT: return "RIGHT";
+    }
+    return "UNKNOWN";
+}
+}
 
 //Regular command boilerplate stuff:
 
@@ -14,8 +27,8 @@ bool WallLocalization::isFinished(){
     return false; //NEVER STOP >:) 
 }
 
-void WallLocalization::execute(){ //nothing here yet, don't start resetting
-
+void WallLocalization::execute(){
+    reset_pose();
 }
 
 void WallLocalization::end(bool interrupted){
@@ -90,37 +103,101 @@ void WallLocalization::reset_pose(float bias_rate, bool override_checks){
     //check if we're at the extremeties of a cardinal angle, if yes, stop execution
     float normalized = std::fmod(std::fmod(globalTheta, 360.0f) + 360.0f, 360.0f); // normalize angle first into 0 to 360(could be like 745 or -25)
     float angleDeviation = std::abs(std::fmod(std::fmod(normalized + 45.0f, 90.0f) + 90.0f, 90.0f) - 45.0f);
-    if(angleDeviation > 25) return; //we're too slanted
+    if(angleDeviation > 33){
+        if(telemetryEnabled){
+            TELEMETRY.send(std::format(
+                "{{\"t\": {}, \"axis\": \"none\", \"side\": \"NONE\", \"accepted\": false, \"reject\": \"too_slanted\", "
+                "\"distFromWall\": 0, \"poseVal\": 0, \"wallVal\": 0, \"errorIn\": 0, \"confidence\": 0, \"objectSize\": 0, "
+                "\"theta\": {:.1f}, \"angleDev\": {:.1f}}}\n",
+                now, globalTheta, angleDeviation));
+        }
+        return; //we're too slanted
+    }
 
     //find which sensor to use
     WallSensor::Side front_side  = get_side_facing_front(globalTheta);
     WallSensor::Side desired_sensor_side_x = (x > 0 ? front_side - 1 : front_side + 1);//Need to know whether it's on the negative or positive side of the axis
     WallSensor::Side desired_sensor_side_y = (y > 0 ? front_side : front_side - 2);
 
-    //Now calculate how far away we are from walls with modified ray casting 
-    double dist_from_wall_x = get_dist_from_wall(desired_sensor_side_x, globalTheta);
-    double dist_from_wall_y = get_dist_from_wall(desired_sensor_side_y, globalTheta);
-
-    //first check if the sensor/reading even exists
-    if(dist_from_wall_x != 9999 && dist_from_wall_x != PROS_ERR){
-        double globalX = (sgn(x)) * (70 - dist_from_wall_x);
-        if(find_sensor(desired_sensor_side_x)->isObviouslyBad() && !override_checks) globalX=x; //check if reading is obviously bad(size too small or confidence low)
-        if(fabs(x-globalX) < 2.5 || override_checks){ //error is less than 2.5 inches
-            x -= (x-globalX) * (bias_rate);
-        }
-    }
-
-    if(dist_from_wall_y != 9999 && dist_from_wall_y != PROS_ERR){
-        double globalY = (sgn(y)) * (70 - dist_from_wall_y);
-        if(find_sensor(desired_sensor_side_y)->isObviouslyBad() && !override_checks) globalY=y;
-        if(fabs(y-globalY) < 2.5 || override_checks){ //error is less than 2.5 inches
-            y -= (y-globalY) * (bias_rate);
-        }
-    }
+    apply_axis(x, desired_sensor_side_x, "x", globalTheta, bias_rate, override_checks, now);
+    apply_axis(y, desired_sensor_side_y, "y", globalTheta, bias_rate, override_checks, now);
 
     //set pose
     chassis->setPose(x,y);
-   
+
+}
+
+void WallLocalization::apply_axis(float& val, WallSensor::Side side, const char* axisName, float globalTheta, float bias_rate, bool override_checks, int now){
+    double dist_from_wall = get_dist_from_wall(side, globalTheta);
+
+    if(dist_from_wall == 9999 || dist_from_wall == PROS_ERR){
+        if(telemetryEnabled){
+            TELEMETRY.send(std::format(
+                "{{\"t\": {}, \"axis\": \"{}\", \"side\": \"{}\", \"accepted\": false, \"reject\": \"{}\", "
+                "\"distFromWall\": 0, \"poseVal\": {:.2f}, \"wallVal\": 0, \"errorIn\": 0, \"confidence\": 0, \"objectSize\": 0, "
+                "\"theta\": {:.1f}, \"angleDev\": 0}}\n",
+                now, axisName, sideToStr(side), dist_from_wall == PROS_ERR ? "no_sensor" : "sensor_range_error",
+                val, globalTheta));
+        }
+        return;
+    }
+
+    double wallVal = sgn(val) * (70 - dist_from_wall);
+    double preVal = val;
+    WallSensor* sensor = find_sensor(side);
+    bool badReading = sensor->isObviouslyBad() && !override_checks;
+    if(badReading) wallVal = val;
+
+    bool applied = fabs(val - wallVal) < 2.5 || override_checks;
+    if(applied){
+        val -= (val - wallVal) * bias_rate;
+    }
+
+    bool accepted = applied && !badReading;
+
+    if(telemetryEnabled){
+        std::string reject = accepted ? "" : (badReading ? "bad_reading" : "pose_mismatch");
+        TELEMETRY.send(std::format(
+            "{{\"t\": {}, \"axis\": \"{}\", \"side\": \"{}\", \"accepted\": {}, \"reject\": \"{}\", "
+            "\"distFromWall\": {:.2f}, \"poseVal\": {:.2f}, \"wallVal\": {:.2f}, \"errorIn\": {:.2f}, "
+            "\"confidence\": {}, \"objectSize\": {}, \"theta\": {:.1f}, \"angleDev\": 0}}\n",
+            now, axisName, sideToStr(side), accepted ? "true" : "false", reject,
+            dist_from_wall, preVal, wallVal, preVal - wallVal,
+            sensor->getConfidence(), sensor->getObjectSize(), globalTheta));
+    }
+}
+
+bool WallLocalization::set_initial_pose(float headingDeg, Quadrant quadrant){
+    float signX = (quadrant == Quadrant::PosXPosY || quadrant == Quadrant::PosXNegY) ? 1.0f : -1.0f;
+    float signY = (quadrant == Quadrant::PosXPosY || quadrant == Quadrant::NegXPosY) ? 1.0f : -1.0f;
+
+    WallSensor::Side front_side = get_side_facing_front(headingDeg);
+    WallSensor::Side side_x = (signX > 0 ? front_side - 1 : front_side + 1);
+    WallSensor::Side side_y = (signY > 0 ? front_side : front_side - 2);
+
+    double dist_x = get_dist_from_wall(side_x, headingDeg);
+    double dist_y = get_dist_from_wall(side_y, headingDeg);
+
+    WallSensor* sensor_x = find_sensor(side_x);
+    WallSensor* sensor_y = find_sensor(side_y);
+
+    bool xOk = dist_x != 9999 && dist_x != PROS_ERR && sensor_x != nullptr && !sensor_x->isObviouslyBad();
+    bool yOk = dist_y != 9999 && dist_y != PROS_ERR && sensor_y != nullptr && !sensor_y->isObviouslyBad();
+
+    if(telemetryEnabled){
+        TELEMETRY.send(std::format(
+            "{{\"t\": {}, \"event\": \"set_initial_pose\", \"headingDeg\": {:.1f}, \"sideX\": \"{}\", \"sideY\": \"{}\", "
+            "\"distX\": {:.2f}, \"distY\": {:.2f}, \"xOk\": {}, \"yOk\": {}}}\n",
+            pros::millis(), headingDeg, sideToStr(side_x), sideToStr(side_y),
+            dist_x, dist_y, xOk ? "true" : "false", yOk ? "true" : "false"));
+    }
+
+    if(!xOk || !yOk) return false;
+
+    float x = signX * (70 - dist_x);
+    float y = signY * (70 - dist_y);
+    chassis->setPose(x, y, degToRad(headingDeg));
+    return true;
 }
 
 WallSensor* WallLocalization::find_sensor(WallSensor::Side side){

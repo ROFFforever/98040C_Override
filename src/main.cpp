@@ -109,13 +109,19 @@ PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLL
 
 
 WallSensor back_wall_sensor(14, -2.99f, 10.19f,  WallSensor::Side::BACK);
-WallSensor left_wall_sensor(19, 0, 0,  WallSensor::Side::LEFT);
-WallSensor front_wall_sensor(17, 0, 0,  WallSensor::Side::FRONT);
-WallSensor right_wall_sensor(4, 0, 0,  WallSensor::Side::RIGHT);
+
+//vertOffset=0.75  horizOffset=7.26
+WallSensor left_wall_sensor(19, 0.75f, 7.26f,  WallSensor::Side::LEFT);
+
+// vertOffset=7.30  horizOffset=1.80
+WallSensor front_wall_sensor(17, 1.80f, 8.1f,  WallSensor::Side::FRONT);
+
+
+WallSensor right_wall_sensor(4, -2.50f, 6.50f,  WallSensor::Side::RIGHT);
 
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
-WallLocalization wallLocalization({&back_wall_sensor}, &chassis);
+WallLocalization wallLocalization({&back_wall_sensor, &left_wall_sensor, &front_wall_sensor, &right_wall_sensor}, &chassis);
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
 
 
@@ -203,6 +209,7 @@ void initialize() {
 	CommandScheduler::registerSubsystem(&front_wall_sensor, nullptr);
 	CommandScheduler::registerSubsystem(&left_wall_sensor, nullptr);
 	CommandScheduler::registerSubsystem(&right_wall_sensor, nullptr);
+	wallLocalization.schedule();
 #ifdef ROBOT_MAIN
 	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
 	CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);
@@ -307,14 +314,15 @@ void opcontrol() {
 
 	int counter = 0;
 
+	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::NegXNegY); //reset pose once at beginning
 	while(true){
 		CommandScheduler::run();
 		counter++;
 
 		if(counter == 10){
-		double theta = radToDeg(chassis.gpos().theta);
-        double d = wallLocalization.get_dist_from_wall(WallSensor::Side::BACK, radToDeg(chassis.gpos().theta));
-        TELEMETRY.debugWireless(std::format("theta: {:.1f}  dist_from_wall: {:.2f}", theta, d));
+		// double theta = radToDeg(chassis.gpos().theta);
+        // double d = wallLocalization.get_dist_from_wall(WallSensor::Side::RIGHT, radToDeg(chassis.gpos().theta));
+        // TELEMETRY.debugWireless(std::format("theta: {:.1f}  dist_from_wall: {:.2f}", theta, d));
 
         // std::int32_t objSize = test_wall_sensor.sensor->get_object_size();
         // std::int32_t confidence = test_wall_sensor.sensor->get_confidence();
