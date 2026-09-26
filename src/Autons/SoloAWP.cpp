@@ -15,7 +15,7 @@ Sequence* first_alliance_pin(drivetrain* chassis, piston* piston, Lift* lift){
         
         chassis->moveForward(15, true, 50),
         new WaitCommand(100),
-        chassis->rotate(0, Speed::NORMAL),
+        chassis->rotate(0),
         new Parallel({
             lift->moveToCommand(-1200),
             chassis->moveToPoint(-15.4, -44.5, true, Speed::NORMAL, 1.5, Units::AUTO)

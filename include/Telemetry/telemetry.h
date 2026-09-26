@@ -2,6 +2,8 @@
 
 #include <string>
 #include <cstdio>
+#include <cstdint>
+#include "pros/rtos.hpp"
 
 /**
  * Sends structured data either down the same USB debug link `pros terminal`
@@ -19,6 +21,15 @@ public:
         SDCard    // write to a file on the microSD card
     };
 
+    enum class Channel {
+        Pose,
+        WallLocalization,
+        Lift,
+        Tuning,
+        Debug,
+        COUNT
+    };
+
     Telemetry() = default;
     ~Telemetry();
 
@@ -29,9 +40,12 @@ public:
      * SD card. If the card isn't installed, silently stays on Wireless
      * instead of losing every subsequent telemetry call.
      */
-    void setMode(Mode mode, const std::string& filename = "telemetry_log.txt");
+    bool setMode(Mode mode, const std::string& filename = "telemetry_log.txt");
 
-    void send(const std::string& data);
+    void setEnabled(Channel channel, bool enabled);
+    bool isEnabled(Channel channel);
+
+    void send(Channel channel, const std::string& data);
 
     /**
      * Quick one-off debug print - wraps `message` as {"debug": "..."} and adds
@@ -54,9 +68,36 @@ public:
      */
     void debugWireless(const std::string& message);
 
+    /**
+     * Appends `data` to "/usd/<filename>" on the SD card and closes the file
+     * again, independent of setMode() and of the log file send() is writing
+     * to - for results you want kept in their own file, accumulating across
+     * runs, instead of mixed into the current run's telemetry log. Returns
+     * false if there's no SD card or the file couldn't be opened.
+     */
+    bool appendToSD(const std::string& filename, const std::string& data);
+
 private:
     Mode mode_ = Mode::Wireless;
     std::FILE* file_ = nullptr;
+    std::string path_;
+    uint32_t lastCommitMs_ = 0;
+    bool enabled_[(int)Channel::COUNT] = {true, true, true, true, true};
+
+    static constexpr size_t kMaxPendingBytes = 64 * 1024;
+    static constexpr uint32_t kWriterPeriodMs = 20;
+    static constexpr uint32_t kCommitPeriodMs = 1000;
+
+    pros::Mutex queueMutex_;
+    std::string pending_;
+    uint32_t droppedLines_ = 0;
+
+    pros::Mutex fileMutex_;
+    bool uncommitted_ = false;
+    pros::Task* writer_ = nullptr;
+
+    void write(const std::string& data);
+    void writerLoop();
 };
 
 inline Telemetry TELEMETRY;

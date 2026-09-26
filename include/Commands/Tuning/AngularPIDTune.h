@@ -15,7 +15,7 @@ class AngularPIDTune : public Command {
     double targetHeading = 0;
     double startHeading = 0;
     Timer* time = nullptr;
-    uint32_t tick = 0;
+    std::string logBuffer;
 
     public:
     AngularPIDTune(drivetrain* drive, double stepDeg, uint32_t testTimeMs = 3000) :

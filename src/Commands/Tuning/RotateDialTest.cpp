@@ -28,7 +28,7 @@ void RotateDialTest::execute(){
         // chassis.rotate() takes an absolute heading, so add the relative
         // pendingTarget onto wherever the robot is currently facing.
         startHeading = radToDeg(drive->gpos().theta);
-        activeRotate = drive->rotate(startHeading + pendingTarget, Speed::FAST);
+        activeRotate = drive->rotate(startHeading + pendingTarget);
         activeRotate->schedule();
         rotating = true;
     }

@@ -33,11 +33,12 @@ if defined MSG (
     echo %date% %time% - SUCCESS >> "%LOGFILE%"
 )
 
-:: 2. Pause so you can read the pros mu result before it scrolls away
-timeout /t 1 /nobreak >nul
+:: 2. Pause so you can read the pros mu result before it scrolls away,
+::    and give the controller a moment to settle after the upload finishes
+timeout /t 2 /nobreak >nul
 
 :: 3. Clear the screen
 cls
 
-:: 4. Run the Python script using the py launcher
-py C:\dev\robotics\MOA\98040C\scripts\telemetry\receive_telemetry.py
+:: 4. Open the PROS terminal to view debug output
+pros terminal

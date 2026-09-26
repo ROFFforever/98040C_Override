@@ -45,7 +45,6 @@ class drivetrain : public Subsystem{
         double wheelRPM; // actual output rpm of the wheel after external gearing, e.g. 450, 360
 
         //motion params for angular and lateral trapazoidal movements
-        MotionParams angular_slow, angular_normal, angular_fast;
         MotionParams lateral_slow, lateral_normal, lateral_fast;
 
         // last tick's readings, so periodic() can diff against them to get distance moved since last tick
@@ -95,7 +94,7 @@ class drivetrain : public Subsystem{
     //simple drivetrain without odom tracking(manually track with drive)
     drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, PID* angular_pid);
     //Drivetrain with basic odom, if don't have a dead wheel, set nullptr
-    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral, bool telemetryEnabled = true);
+    drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral);
     
     void periodic() override; //put localization in here
     //-127/127
@@ -107,7 +106,6 @@ class drivetrain : public Subsystem{
 
     //heading abiding to standard conventions(flips angle because vex does compass style)
     double getAngle();
-    bool telemetryEnabled=true;
     
     bool update_pos();
 
@@ -136,23 +134,22 @@ class drivetrain : public Subsystem{
     void arcade(int throttle, int turn);
 
     // declare a function that takes a Speed
-    MotionParams get_angular_params(Speed speed);
     MotionParams get_lateral_params(Speed speed);
 
     //Factory method for rotating the chassis
-    Rotate* rotate(double target_ang, Speed speed = Speed::NORMAL,
-                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+    Rotate* rotate(double target_ang,
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
 
     //Same as above, but target_ang_supplier(degrees) is called at initialize() instead of now -
     //use this when the target depends on live pose(e.g. moveToPoint's heading-to-goal)
-    Rotate* rotate(std::function<double()> target_ang_supplier, Speed speed = Speed::NORMAL,
-                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+    Rotate* rotate(std::function<double()> target_ang_supplier,
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
 
     //Factory method for turning to face a point (x,y) WITHOUT driving there - target heading is
     //resolved lazily from live pose, same as moveToPoint's rotate step. backwards=true faces the
     //robot's back toward the point instead of its front.
-    Rotate* rotate_to_point(double x, double y, bool backwards = false, Speed speed = Speed::NORMAL,
-                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+    Rotate* rotate_to_point(double x, double y, bool backwards = false,
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
 
     tank_motion_profile* Tank_motion_profile(double x, double y, Speed speed = Speed::NORMAL, double max_time=Units::AUTO_TIME, double settle_range = Units::AUTO, bool backwards = false);
 
@@ -164,6 +161,5 @@ class drivetrain : public Subsystem{
     //Uses Speed::NORMAL's accel/final_vel shape but overrides cruise_vel with maxSpeed (inches/sec).
     tank_motion_profile* moveForward(double distance, bool backwards, double maxSpeed, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
     void set_speeds_lateral(Speed speed, MotionParams params);
-    void set_speeds_angular(Speed speed, MotionParams params);
 
 };

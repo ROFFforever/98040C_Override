@@ -102,7 +102,7 @@ void FeedForwardTest::report_results(){
         std::string msg = std::format("{{\"target\": {}, \"actual\": {}, \"error\": {}}}\n",
             stage.targetVelocity, avgActual, error);
         for(int i = 0; i < 3; i++){
-            TELEMETRY.send(msg);
+            TELEMETRY.send(Telemetry::Channel::Tuning, msg);
             pros::delay(200);
         }
 
@@ -113,7 +113,7 @@ void FeedForwardTest::report_results(){
 
     std::string summary = std::format("{{\"steady_state_rmse\": {}, \"n\": {}}}\n", rmse, steadyCount);
     for(int i = 0; i < 5; i++){
-        TELEMETRY.send(summary);
+        TELEMETRY.send(Telemetry::Channel::Tuning, summary);
         pros::delay(200);
     }
 }

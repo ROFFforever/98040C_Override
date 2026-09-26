@@ -47,7 +47,7 @@ bool Lift::tickMoveTo(double angle, double settle_error){
             "{{\"t\": {}, \"targetDeg\": {}, \"posDeg\": {}, \"errorDeg\": {}, \"mV\": {}, \"mode\": \"{}\", \"exitCounter\": {}, \"finished\": {}}}\n",
             pros::millis() - move_start_time, angle, pos, error, mV, bangBang ? "bangBang" : "pid",
             move_exit_counter, finished ? "true" : "false");
-        TELEMETRY.send(msg);
+        TELEMETRY.send(Telemetry::Channel::Lift, msg);
     }
     move_tick++;
 

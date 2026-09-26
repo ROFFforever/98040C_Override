@@ -19,7 +19,7 @@ void LiftPIDTune::execute() {
       std::string msg = std::format(
           "{{\"t\": {}, \"targetDeg\": {}, \"posDeg\": {}, \"errorDeg\": {}, \"mV\": {}}}\n",
           time->getTimePassed(), targetDeg, pos, targetDeg - pos, mV);
-      TELEMETRY.send(msg);
+      TELEMETRY.send(Telemetry::Channel::Tuning, msg);
   }
   tick++;
 }

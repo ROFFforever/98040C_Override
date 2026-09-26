@@ -3,6 +3,7 @@
 #include "CommandScheduler/command.h"
 #include "Subsystems/WallSensor.h"
 #include "Subsystems/drivetrain.h"
+#include "Commands/Localization/AxisUncertainty.h"
 #include "Units.h"
 
 // THIS COMMAND'S PURPOSE:
@@ -20,15 +21,52 @@ class WallLocalization : public Command {
     private:
     std::vector<WallSensor*> sensors;
     drivetrain* chassis;
-    int lastResetTime=0;
-    bool telemetryEnabled=true;
 
-    void apply_axis(float& val, WallSensor::Side side, const char* axisName, float globalTheta, float bias_rate, bool override_checks, int now);
+    AxisUncertainty xUncertainty;
+    AxisUncertainty yUncertainty;
+    double lastOdometer = 0;
+    bool travelSeeded = false;
+
+    struct WallEstimate {
+        bool hasSensor = false;
+        bool inRange = false;
+        double distFromWall = 0;
+        double coordinate = 0;
+    };
+
+    struct AxisLog {
+        const char* axisName = "";
+        WallSensor::Side side = WallSensor::Side::FRONT;
+        WallSensor* sensor = nullptr;
+        double distFromWall = 0;
+        double poseVal = 0;
+        double wallVal = 0;
+        double errorIn = 0;
+        double gate = 0;
+        double travel = 0;
+        bool accepted = false;
+        const char* reject = "";
+        float globalTheta = 0;
+        int now = 0;
+    };
+
+    double travel_odometer();
+    void accrue_travel();
+    bool has_fresh_sensor();
+    float cardinal_deviation(float globalTheta);
+    WallEstimate estimate_from_wall(WallSensor::Side side, float poseVal, float globalTheta);
+    void apply_axis(float& val, WallSensor::Side side, const char* axisName, AxisUncertainty& uncertainty, float globalTheta, float bias_rate, bool override_checks, int now);
+    void log_axis(const AxisLog& entry);
+    void log_slant_reject(float globalTheta, float angleDeviation, int now);
 
     public:
     enum class Quadrant { PosXPosY, PosXNegY, NegXPosY, NegXNegY };
 
-    WallLocalization(std::vector<WallSensor*> sensors, drivetrain* chassis, bool telemetryEnabled = true) : sensors(sensors), chassis(chassis), telemetryEnabled(telemetryEnabled) {}
+    WallLocalization(std::vector<WallSensor*> sensors, drivetrain* chassis,
+                     double base_gate = 2.5, double drift_fraction = 0.05, double max_gate = 12.0)
+        : sensors(sensors), chassis(chassis),
+          xUncertainty(base_gate, drift_fraction, max_gate),
+          yUncertainty(base_gate, drift_fraction, max_gate) {}
     WallSensor::Side get_side_facing_front(float globalTheta); //finds which side robot is currently facing
     double get_dist_from_wall(WallSensor::Side side, float globalTheta); //finds distance to wall accounting for offsets of distance sensor from absolute center
     WallSensor* find_sensor(WallSensor::Side side); //returns sensor of that side(we will only ever use a max of one sensor per side)
@@ -37,7 +75,7 @@ class WallLocalization : public Command {
      * @param bias_rate scale from 0-1 which influences how much wall sensor's calculations change pose
      * @param override_checks Set this to true if you want to disable checking(you are confident it will reset correctly)
      */
-    void reset_pose(float bias_rate=0.6,bool override_checks=false);
+    void reset_pose(float bias_rate=0.14,bool override_checks=false);
     bool set_initial_pose(float headingDeg, Quadrant quadrant);
     void initialize() override;
     void execute() override;

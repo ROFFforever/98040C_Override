@@ -34,7 +34,7 @@ void LateralPIDTune::execute() {
     std::string msg = std::format(
         "{{\"t\": {}, \"targetIn\": {}, \"traveledIn\": {}, \"errorIn\": {}, \"mV\": {}}}\n",
         nowMs, stepIn, traveled, stepIn - traveled, mV);
-    TELEMETRY.send(msg);
+    TELEMETRY.send(Telemetry::Channel::Tuning, msg);
   }
 }
 

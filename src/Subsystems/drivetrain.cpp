@@ -32,7 +32,7 @@ drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMoto
     this-> residual_angular_pid = angular_pid;
 }
 
-drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral, bool telemetryEnabled) {
+drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMotors, pros::Imu* imu, double wheel_diameter, double wheelRPM, odom_wheel* vert_odom, odom_wheel* horiz_odom, PID* angular_pid, velocity_feed_forward* ff_lateral, velocity_feed_forward* ff_angular, PID* residual_PID_lateral) {
     this->leftMotors = leftMotors;
     this->rightMotors = rightMotors;
     this->imu = imu;
@@ -44,7 +44,6 @@ drivetrain::drivetrain(pros::MotorGroup* leftMotors, pros::MotorGroup* rightMoto
     this->ff_lateral=ff_lateral;
     this->ff_angular=ff_angular;
     this->residual_PID_lateral=residual_PID_lateral;
-    this->telemetryEnabled=telemetryEnabled;
 }
 
 double drivetrain::getLeftDistance() {
@@ -108,8 +107,8 @@ void drivetrain::periodic(){
         TELEMETRY.debug("MISSING SENSOR");
     }
 
-    if(telemetryEnabled){
-        TELEMETRY.send(std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
+    if(TELEMETRY.isEnabled(Telemetry::Channel::Pose)){
+        TELEMETRY.send(Telemetry::Channel::Pose, std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
             pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
         }
 }
@@ -258,14 +257,6 @@ void drivetrain::set(int mV){
     rightMotors->move_voltage(mV);
 }
 
-MotionParams drivetrain::get_angular_params(Speed speed){
-    switch(speed){
-        case Speed::SLOW:  return angular_slow;
-        case Speed::FAST:  return angular_fast;
-        default:           return angular_normal;   // covers Speed::NORMAL
-    }
-}
-
 MotionParams drivetrain::get_lateral_params(Speed speed){
     switch(speed){
         case Speed::SLOW:  return lateral_slow;
@@ -282,22 +273,12 @@ void drivetrain::set_speeds_lateral(Speed speed, MotionParams params){
     }
 }
 
-void drivetrain::set_speeds_angular(Speed speed, MotionParams params){
-    switch(speed){
-        case Speed::SLOW:   angular_slow = params;   break;
-        case Speed::FAST:   angular_fast = params;   break;
-        default:            angular_normal = params; break;   // covers Speed::NORMAL
-    }
+Rotate* drivetrain::rotate(double target_ang, double max_time, double settle_range, int max_speed){
+    return new Rotate(target_ang, this, max_time, settle_range, max_speed);
 }
 
-Rotate* drivetrain::rotate(double target_ang, Speed speed, double max_time, double settle_range){
-    MotionParams p = get_angular_params(speed);
-    return new Rotate(target_ang, this, p, max_time, settle_range);
-}
-
-Rotate* drivetrain::rotate(std::function<double()> target_ang_supplier, Speed speed, double max_time, double settle_range){
-    MotionParams p = get_angular_params(speed);
-    return new Rotate(target_ang_supplier, this, p, max_time, settle_range);
+Rotate* drivetrain::rotate(std::function<double()> target_ang_supplier, double max_time, double settle_range, int max_speed){
+    return new Rotate(target_ang_supplier, this, max_time, settle_range, max_speed);
 }
 
 tank_motion_profile* drivetrain::Tank_motion_profile(double x, double y, Speed speed, double max_time, double settle_range, bool backwards){
@@ -321,13 +302,13 @@ tank_motion_profile* drivetrain::moveForward(double distance, bool backwards, do
 }
 
 
-Rotate* drivetrain::rotate_to_point(double x, double y, bool backwards, Speed speed, double max_time, double settle_range){
+Rotate* drivetrain::rotate_to_point(double x, double y, bool backwards, double max_time, double settle_range, int max_speed){
     //Heading is resolved lazily(at the Rotate's initialize(), not here) since this factory runs whenever
     //the enclosing Sequence is being BUILT - if it's nested after other motions in an outer Sequence, the
     //robot hasn't actually reached this point yet, so gpos() here would be stale/wrong.
     return rotate([this, x, y, backwards](){
         return radToDeg(angleDifference(gpos(), x, y)) + (backwards ? 180.0 : 0.0);
-    }, speed, max_time, settle_range);
+    }, max_time, settle_range, max_speed);
 }
 
 Sequence* drivetrain::moveToPoint(double x, double y, bool backwards, Speed speed, double max_time, double settle_range){

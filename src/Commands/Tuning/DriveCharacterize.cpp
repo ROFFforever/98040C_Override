@@ -20,24 +20,11 @@ struct PowerStage {
   uint32_t breakDurationMs = 1000;
 };
 
-// One continuous sequence: a slow ramp (both directions) so kS/kV see a
-// well-conditioned low-acceleration signal, followed by short hard bursts
-// (both directions) so kA sees a well-conditioned high-acceleration signal -
-// all recorded together and fit jointly. Echo's characterizeLinear() runs the
-// same shape of test (varied power steps in one recording) for the same reason.
 const std::vector<PowerStage> STAGES = {
-    // slow ramp - kS/kV
-    {0.2, 500, true},  {0.35, 500, false}, {0.5, 600, false},  {0.65, 700, false},
-    {0.85, 900, false}, {0.0, 600, false},
-    {-0.2, 500, true, 3500}, {-0.35, 500, false}, {-0.5, 600, false}, {-0.65, 700, false},
-    {-0.85, 900, false}, {0.0, 300, false},
-    // hard bursts - kA
-    {0.6, 350, true}, {0.0, 350, false},
-    {0.9, 350, true}, {0.0, 350, false},
-    {0.9, 350, true}, {0.0, 350, false},
-    {-0.6, 350, true, 2000}, {0.0, 350, false},
-    {-0.9, 350, true}, {0.0, 350, false},
-    {-0.9, 350, true}, {0.0, 350, false},
+    {0.5, 500, true}, {0.7, 600, false}, {0.2, 600, false}, {0.0, 300, false},
+    {-0.7, 800, false}, {-0.2, 800, false}, {0.0, 300, false},
+    {0.5, 500, false}, {0.7, 600, false}, {0.2, 600, false}, {0.0, 300, false},
+    {-0.7, 800, false}, {-0.2, 800, false}, {0.0, 300, false},
 };
 
 uint32_t totalStageDuration(const std::vector<PowerStage> &stages) {
@@ -161,6 +148,7 @@ void DriveCharacterize::compute_and_send_kav(){
     double det = det3(A);
     if(std::abs(det) < 1e-9){
         TELEMETRY.debug("KAV fit failed - not enough variety in the collected data (singular matrix)");
+        TELEMETRY.debugWireless("KAV fit failed - not enough variety in the collected data (singular matrix)");
         return;
     }
 
@@ -198,9 +186,14 @@ void DriveCharacterize::compute_and_send_kav(){
     std::string msg = std::format(
         "{{\"kS\": {}, \"kV\": {}, \"kA\": {}, \"r2\": {}, \"rmse\": {}, \"n\": {}, \"vRange\": [{}, {}], \"aRange\": [{}, {}]}}\n",
         kS, kV, kA, r2, rmse, vals.size(), vMin, vMax, aMin, aMax);
+
+    TELEMETRY.send(Telemetry::Channel::Tuning, msg);
+    TELEMETRY.appendToSD("kav_results.txt",
+        std::format("// lateral  t={}ms\n", pros::millis()) + msg);
+
     // send a few times ~200ms apart - cheap now that it's one short line, and guards against a single dropped frame
     for(int i=0;i<5;i++){
-        TELEMETRY.send(msg);
+        TELEMETRY.sendWireless(msg);
         pros::delay(200);
     }
 }

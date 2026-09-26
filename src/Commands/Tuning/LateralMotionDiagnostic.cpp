@@ -113,7 +113,7 @@ void LateralMotionDiagnostic::execute() {
             targetPos, curr_pos, errorIn,
             targetVel, actualVel, actualVel - targetVel, targetAccel,
             ffMv, pidMv, appliedPidMv, totalMv);
-        TELEMETRY.send(msg);
+        TELEMETRY.send(Telemetry::Channel::Tuning, msg);
     }
 }
 

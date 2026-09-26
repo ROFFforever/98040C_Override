@@ -14,12 +14,15 @@
 #include <cfenv>
 #include <cstdio>
 #include "Commands/Tuning/DriveCharacterize.h"
+#include "Commands/Tuning/CameraCharacterize.h"
 #include "Telemetry/telemetry.h"
 #include "Commands/Tuning/FeedForwardTest.h"
 #include "Commands/Rotate.h"
 #include "Subsystems/Lift.h"
 #include "Commands/LiftMoveToCommand.h"
+#include "Commands/WaitCommand.h"
 #include "Autons/SoloAWP.h"
+#include "Autons/OdomAccuracyTest.h"
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
 #include "Commands/TeleopCommands/PistonTeleopCommand.h"
@@ -33,6 +36,8 @@
 #include "Commands/Tuning/RotateDialTest.h"
 #include "Commands/Tuning/MoveToPointDialTest.h"
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
+
+bool wall_enabled=false;
 
 #ifdef ROBOT_MAIN
 pros::MotorGroup leftMotors({17, 20});   // port numbers; negative = reversed
@@ -84,11 +89,14 @@ odom_wheel horiz(&horizRotation, 0.75, 2.125);
 
 //controllers
 PID residual_lateral_PID(2.4 * 1000,0,70*100,0,0);
-PID angular_pid(20 * 1000.0,0,120 * 1000,0,0);
+PID angular_pid(15.2 * 1000.0,0,117 * 1000,0,0);
 
-velocity_feed_forward ff_lateral(0.14954251997144965 * 1000,  // kV
+
+// //
+// {"kS": 0.671754342335145, "kV": 0.13186696277648247, "kA": -0.0006958734869371364, "r2": 0.803989358366047, "rmse": 2.7154202310992996, "n": 1216, "vRange": [-123.13297872820009, 193.5721178570053], "aRange": [-19357.211785700532, 19357.211785700532]}
+velocity_feed_forward ff_lateral(0.13186696277648247 * 1000,  // kV
                           0, // kA is 0 because it doens't pull much weight
-                          0.9570910152819988 * 1000);  // kS
+                          0.671754342335145 * 1000);  // kS
 
 velocity_feed_forward ff_angular(0.8995599372169607*1000,  // kV
 0.089*1000, // kA
@@ -111,7 +119,7 @@ PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLL
 WallSensor back_wall_sensor(14, -2.99f, 10.19f,  WallSensor::Side::BACK);
 
 //vertOffset=0.75  horizOffset=7.26
-WallSensor left_wall_sensor(19, 0.75f, 7.26f,  WallSensor::Side::LEFT);
+WallSensor left_wall_sensor(9, 0.75f, 7.26f,  WallSensor::Side::LEFT);
 
 // vertOffset=7.30  horizOffset=1.80
 WallSensor front_wall_sensor(17, 1.80f, 8.1f,  WallSensor::Side::FRONT);
@@ -178,6 +186,12 @@ void initialize() {
 	//compared to wireless logging
 	TELEMETRY.setMode(Telemetry::Mode::SDCard, "run_" + std::to_string(runId) + ".ndjson");
 
+	TELEMETRY.setEnabled(Telemetry::Channel::Pose, false);
+	TELEMETRY.setEnabled(Telemetry::Channel::WallLocalization, false);
+	TELEMETRY.setEnabled(Telemetry::Channel::Lift, false);
+	TELEMETRY.setEnabled(Telemetry::Channel::Tuning, true);
+	TELEMETRY.setEnabled(Telemetry::Channel::Debug, true);
+
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
 	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
 	
@@ -193,15 +207,19 @@ void initialize() {
 	rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_BRAKE);
 
 	//set motion params for KAV model
+#ifdef ROBOT_MAIN
 	chassis.set_speeds_lateral(Speed::SLOW, {40.0, 0.0, 65.0}); // cruise_vel, final_vel, accel
 	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 75.0}); // cruise_vel, final_vel, accel
 	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
 
-	chassis.set_speeds_angular(Speed::SLOW, {7, 0.0, 10}); // cruise_vel, final_vel, accel
-	chassis.set_speeds_angular(Speed::NORMAL, {12, 0.0, 17.0}); // cruise_vel, final_vel, accel
-	chassis.set_speeds_angular(Speed::FAST, {15, 0.0, 20.0}); // cruise_vel, final_vel, accel
-
 	chassis.angular_kS = 1910;
+#else
+	chassis.set_speeds_lateral(Speed::SLOW, {50.0, 0.0, 25.0});
+	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 60.0});
+	chassis.set_speeds_lateral(Speed::FAST, {70.0, 0.0, 70.0});
+
+	chassis.angular_kS = 1071;
+#endif
 
 	//drive command
 	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);
@@ -209,7 +227,9 @@ void initialize() {
 	CommandScheduler::registerSubsystem(&front_wall_sensor, nullptr);
 	CommandScheduler::registerSubsystem(&left_wall_sensor, nullptr);
 	CommandScheduler::registerSubsystem(&right_wall_sensor, nullptr);
+	if(wall_enabled){
 	wallLocalization.schedule();
+	}
 #ifdef ROBOT_MAIN
 	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
 	CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);
@@ -250,13 +270,30 @@ void autonomous() {
 		// get_second_pin(&chassis, &claw_piston, &lift),
 		go_back_toggle(&chassis, &claw_piston, &lift)
 	}))->schedule();
+	uint32_t now = pros::millis();
 	while(true){
     CommandScheduler::run();
-    pros::delay(10);
+    pros::Task::delay_until(&now, 10);
 	}
 #else
+	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
 	//nothing here since test bot no have any formal auton
+
+	(new Sequence({
+		chassis.moveToPoint(36.178, -16.616),
+		new WaitCommand(100),
+		chassis.moveToPoint(-0.807, -49.322),
+		chassis.rotate(0),
+		chassis.moveToPoint(-17.007, -46.877, true)
+	}))->schedule();
+
+	uint32_t now = pros::millis();
+	while(true){
+		CommandScheduler::run();
+		pros::Task::delay_until(&now, 10);
+	}
 #endif
+	
 }
 
 
@@ -281,6 +318,9 @@ void opcontrol() {
 	// DriveCharacterize kav(&chassis);
 	// CommandScheduler::schedule(&kav);
 
+	// CameraCharacterize cameraKav(&chassis);
+	// CommandScheduler::schedule(&cameraKav);
+
 	// AngularCharacterize ang(&chassis);
 	// CommandScheduler::schedule(&ang);
 
@@ -288,7 +328,8 @@ void opcontrol() {
 	// CommandScheduler::schedule(&ff_test);
 
 
-	// AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
+	AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
+	angularTune.schedule();
 	//LateralPIDTune lateralTune(&chassis, 36, 10000);
 
 	// Step-response test for cascade_lift_pid (declared near the other
@@ -310,11 +351,14 @@ void opcontrol() {
 	// MoveToPointDialTest mp(&chassis, &controller);
 	// mp.schedule();
 
+	// chassis.setPose(0, 0, 0);
+	// odom_accuracy_test(&chassis, 24, 4000, 3000)->schedule();
+
 	// }
 
 	int counter = 0;
 
-	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::NegXNegY); //reset pose once at beginning
+	uint32_t now = pros::millis();
 	while(true){
 		CommandScheduler::run();
 		counter++;
@@ -343,6 +387,6 @@ void opcontrol() {
 		}
 #endif
 
-		pros::delay(10); //100hz
+		pros::Task::delay_until(&now, 10); //gaurentees that we run on 100hz, if loop took like 1 millisecond then sleeps only 9
 	}
 }

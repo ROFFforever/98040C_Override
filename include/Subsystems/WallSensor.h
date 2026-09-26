@@ -19,6 +19,7 @@ class WallSensor : public Subsystem {
     std::int32_t getConfidence();
     std::int32_t getObjectSize();
     bool isObviouslyBad();
+    bool hasFreshSample() const;
 
     //Horizontal offset is positive if it's right from robot center.
     //Vertical offset is always positive
@@ -26,6 +27,11 @@ class WallSensor : public Subsystem {
     float vertOffset;
     const Side side;
     pros::Distance* sensor;
+
+    private:
+    float lastRaw = -1.0f;
+    std::uint32_t lastSampleTime = 0;
+    bool sampleReady = false;
 };
 
 WallSensor::Side operator+(WallSensor::Side s, int n);

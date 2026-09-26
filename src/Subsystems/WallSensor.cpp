@@ -3,6 +3,9 @@
 #include <cstdint>
 #include "util/mathUtils.h"
 #include "pros/error.h"
+#include "pros/rtos.hpp"
+
+static constexpr std::uint32_t kStaleFallbackMs = 40;
 
 WallSensor::WallSensor(int port, float horizOffset, float vertOffset, Side side)
     : horizOffset(horizOffset), vertOffset(vertOffset), side(side), sensor(new pros::Distance(port))
@@ -11,6 +14,20 @@ WallSensor::WallSensor(int port, float horizOffset, float vertOffset, Side side)
 
 void WallSensor::periodic()
 {
+    std::uint32_t now = pros::millis();
+    float raw = getDist();
+
+    if(raw != lastRaw){
+        lastRaw = raw;
+        lastSampleTime = now;
+        sampleReady = true;
+    }else if(now - lastSampleTime >= kStaleFallbackMs){
+        lastSampleTime = now;
+        sampleReady = true;
+    }else{
+        sampleReady = false;
+    }
+
     // //dont need this right now
     // TELEMETRY.send(std::format("{{\"t\": {}, \"dist\": {}, \"confidence\": {}, \"object_size\": {}, \"TYPE\": {}, \"port\": {}}}\n",
     //         pros::millis(), getDist(), getConfidence(), getObjectSize(), (side == Side::BACK ? 0 : (side == Side::FRONT ? 1 : (side == Side::LEFT ? 2 : 3))),
@@ -34,6 +51,10 @@ std::int32_t WallSensor::getObjectSize() {
 
 bool WallSensor::isObviouslyBad() {
     return getConfidence() < 45 || getObjectSize() < 80; //if we're scanning for walls, neither of these flags should eval to true
+}
+
+bool WallSensor::hasFreshSample() const {
+    return sampleReady;
 }
 
 namespace {

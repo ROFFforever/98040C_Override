@@ -145,6 +145,7 @@ void AngularCharacterize::compute_and_send_kav(){
     double det = det3(A);
     if(std::abs(det) < 1e-9){
         TELEMETRY.debug("Angular KAV fit failed - not enough variety in the collected data (singular matrix)");
+        TELEMETRY.debugWireless("Angular KAV fit failed - not enough variety in the collected data (singular matrix)");
         return;
     }
 
@@ -178,8 +179,13 @@ void AngularCharacterize::compute_and_send_kav(){
     std::string msg = std::format(
         "{{\"kS_ang\": {}, \"kV_ang\": {}, \"kA_ang\": {}, \"r2\": {}, \"rmse\": {}, \"n\": {}, \"wRange\": [{}, {}], \"aRange\": [{}, {}]}}\n",
         kS, kV, kA, r2, rmse, vals.size(), wMin, wMax, aMin, aMax);
+
+    TELEMETRY.send(Telemetry::Channel::Tuning, msg);
+    TELEMETRY.appendToSD("kav_results.txt",
+        std::format("// angular  t={}ms\n", pros::millis()) + msg);
+
     for(int i=0;i<5;i++){
-        TELEMETRY.send(msg);
+        TELEMETRY.sendWireless(msg);
         pros::delay(200);
     }
 }
