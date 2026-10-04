@@ -6,19 +6,21 @@
 double settle_range_config = 1.5; //1.5 inches is reasonable
 double heading_lock_distance = 6.0;
 
-tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time, double settle_range, bool backwards) {
+tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards) {
   this->x = x;
   this->y = y;
   this->constraints = constraints;
+  this->early_exit_range = early_exit_range;
   this->drive = drive;
   this->max_time = max_time;
   this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
   this->backwards = backwards;
 }
 
-tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double max_time, double settle_range, bool backwards) {
+tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards) {
   this->target_supplier = target_supplier;
   this->constraints = constraints;
+  this->early_exit_range = early_exit_range;
   this->drive = drive;
   this->max_time = max_time;
   this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
@@ -63,7 +65,7 @@ void tank_motion_profile::initialize() {
 
   // create the trap prof
   if (constraints.init_vel == Units::CURRENT_VEL) {
-    constraints.init_vel = drive->get_lateral_velocity();
+    constraints.init_vel = drive->get_lateral_velocity() * (backwards ? -1.0 : 1.0);
   }
 
   motion = new TrapezoidProfile({constraints.cruise_vel, constraints.accel},
@@ -100,6 +102,24 @@ void tank_motion_profile::execute() {
 
   int dirSign = backwards ? -1 : 1; // backwards: negate translational voltage
 
+  if (early_exit_range > 0 && lateral_error <= early_exit_range) {
+    finished = true;
+    return;
+  }
+
+  //remeber, ticks run at 100hz so maybe 8 verified ticks(0.08) is good enough
+  if (fabs(lateral_error) <= settle_range) {
+    exit_consecutive_counter++;
+  } else if (exit_consecutive_counter > 0) {
+    exit_consecutive_counter = 0;
+  }
+
+  if (exit_consecutive_counter >= 8) {
+    finished = true;
+    drive->set(0); //stop drivetrain
+    return;
+  }
+
   //Actual logic for moving straight there
   if (!result.has_value()) {
     if (!profile_over) { //one time way to reset the PID to a new target(just shifted everything)
@@ -110,22 +130,10 @@ void tank_motion_profile::execute() {
     drive->residual_PID_lateral->set_target(motion->getDist()); //just use actual target angle
     drive->residual_angular_pid->set_target(headingError);
 
-    //remeber, ticks run at 100hz so maybe 8 verified ticks(0.08) is good enough
-    if (fabs(lateral_error) <= settle_range) {
-      exit_consecutive_counter++;
-    } else if (exit_consecutive_counter > 0) {
-      exit_consecutive_counter = 0;
-    }
-
-    if (exit_consecutive_counter >= 8) {
-      finished = true;
-      drive->set(0); //stop drivetrain
-    } else {
-      int mV = dirSign * drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
-      int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
-      drive->setVoltageLeft(mV - turn_mv + sgn(mV) * drive->lateral_kS);
-      drive->setVoltageRight(mV + turn_mv + sgn(mV) * drive->lateral_kS);
-    }
+    int mV = dirSign * drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
+    int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
+    drive->setVoltageLeft(mV - turn_mv + sgn(mV) * drive->lateral_kS);
+    drive->setVoltageRight(mV + turn_mv + sgn(mV) * drive->lateral_kS);
 
     profile_over = true;
   } else {

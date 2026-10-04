@@ -18,9 +18,9 @@ Sequence* first_alliance_pin(drivetrain* chassis, piston* piston, Lift* lift){
         chassis->rotate(0),
         new Parallel({
             lift->moveToCommand(-1200),
-            chassis->moveToPoint(-15.4, -44.5, true, Speed::NORMAL, 1.5, Units::AUTO)
+            chassis->moveToPoint(-15.4, -44.5, 0, true, Speed::NORMAL, 1.5, Units::AUTO)
         }),
-        chassis->rotate_to_point(-23.4, -44, true),
+        chassis->rotate_to_point(-23.4, -44, 0, true),
         chassis->moveForward(1.4, false, 60),
         lift->moveToCommand(500),
         new InstantCommand([piston]{ piston->toggle(); }),
@@ -36,7 +36,7 @@ Sequence* get_second_pin(drivetrain* chassis, piston* piston, Lift* lift){
         new WaitCommand(100),
         new Parallel({
             lift->moveToCommand(300),
-            chassis->moveToPoint(-20.589, -27.2, true)
+            chassis->moveToPoint(-20.589, -27.2, 0, true)
         }),
         new InstantCommand([piston]{ piston->toggle(); }),
         new WaitCommand(200),
@@ -44,7 +44,7 @@ Sequence* get_second_pin(drivetrain* chassis, piston* piston, Lift* lift){
             lift->moveToCommand(-5000),
             new Sequence({
                 new WaitCommand(300),
-                chassis->moveToPoint(-25, -37.5, true, Speed::NORMAL, 1.2)
+                chassis->moveToPoint(-25, -37.5, 0, true, Speed::NORMAL, 1.2)
             })
         }),
         chassis->moveForward(2.5, false, 60),
@@ -61,7 +61,7 @@ Sequence* go_back_toggle(drivetrain* chassis, piston* piston, Lift* lift){
         chassis->rotate(0),
         chassis->moveForward(15, false, 70),
           chassis->rotate(270),
-        chassis->moveForward(33, false, 60, 1.2),
-        chassis->moveForward(10, true, 60, 1),
-        chassis->moveForward(26, false, 60, 1)});
+        chassis->moveForward(33, false, 60, 0, 1.2),
+        chassis->moveForward(10, true, 60, 0, 1),
+        chassis->moveForward(26, false, 60, 0, 1)});
 }

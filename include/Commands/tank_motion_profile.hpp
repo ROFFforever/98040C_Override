@@ -10,6 +10,7 @@ class tank_motion_profile : public Command{
     private:
 
         double x,y,settle_range;
+        double early_exit_range;
         //if set, x/y are resolved from this at initialize() instead of the constructor's fixed values -
         //use this when the goal itself depends on live pose(e.g. moveForward's "N inches from wherever I am")
         std::function<Pose()> target_supplier;
@@ -35,8 +36,8 @@ class tank_motion_profile : public Command{
         bool backwards; //true if driving to (x,y) in reverse
 
     public:
-        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
-        tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
+        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
+        tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
         void initialize() override;
         void execute() override;
         bool isFinished() override;

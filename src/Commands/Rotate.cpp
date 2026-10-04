@@ -2,12 +2,13 @@
 #include <vector>
 #include <algorithm>
 
-const double settle_range_config = degToRad(3); //should be a good balance of speed and accuracy
+const double settle_range_config = degToRad(5); //should be a good balance of speed and accuracy
 const double auto_time_base = 0.5;
 const double auto_time_per_rad = 0.4;
 
-Rotate::Rotate(double target_ang, drivetrain* drive, double max_time, double settle_range, int max_speed){
+Rotate::Rotate(double target_ang, drivetrain* drive, double early_exit_range, double max_time, double settle_range, int max_speed){
     this->target_ang=degToRad(target_ang);
+    this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
@@ -15,8 +16,9 @@ Rotate::Rotate(double target_ang, drivetrain* drive, double max_time, double set
     this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
 };
 
-Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, double max_time, double settle_range, int max_speed){
+Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, double early_exit_range, double max_time, double settle_range, int max_speed){
     this->target_supplier = target_supplier;
+    this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
@@ -57,6 +59,11 @@ void Rotate::execute(){
     double heading = drive->gpos().theta;
     double angError = angleDifference(target_ang, heading);
 
+    if(early_exit_range > 0 && fabs(angError) <= early_exit_range){
+        finished=true;
+        return;
+    }
+
     //figure out settle angles now
     //remeber, ticks run at 100hz so maybe 8 verified ticks(0.08) is good enough
     if(fabs(angError) <= settle_range) exit_consecutive_counter++;
@@ -73,7 +80,7 @@ void Rotate::execute(){
     int mV = drive->residual_angular_pid->update(angle_turned);
 
     constexpr double kKickDeadbandRad = 0.0174533; // ~1 degree, stop kicking once this close, let PID alone settle
-    constexpr double kKickScale = 0.4; // fraction of measured kS to actually apply - full kS overshoots the last bit of error
+    constexpr double kKickScale = 0.8; // fraction of measured kS to actually apply - full kS overshoots the last bit of error
     bool nearTarget = fabs(angError) < kKickDeadbandRad;
     int kick = nearTarget ? 0 : (int)(drive->angular_kS * kKickScale) * (int)sgn(angError);
 
@@ -83,9 +90,7 @@ void Rotate::execute(){
 }
 
 void Rotate::end(bool interupted){
-    if(interupted){
-        drive->set(0);
-    }
+    drive->set(0);
 }
 
 bool Rotate::isFinished(){

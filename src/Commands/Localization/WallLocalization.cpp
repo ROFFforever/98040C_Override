@@ -15,6 +15,19 @@ const char* sideToStr(WallSensor::Side side){
     }
     return "UNKNOWN";
 }
+
+constexpr float kMaxCardinalDeviation = 40.0f;
+constexpr float kCornerLimit = 60.0f;
+
+float sideAngleDeg(WallSensor::Side side){
+    switch(side){
+        case WallSensor::Side::FRONT: return 0.0f;
+        case WallSensor::Side::LEFT:  return 90.0f;
+        case WallSensor::Side::BACK:  return 180.0f;
+        case WallSensor::Side::RIGHT: return -90.0f;
+    }
+    return 0.0f;
+}
 }
 
 //Regular command boilerplate stuff:
@@ -131,7 +144,7 @@ void WallLocalization::reset_pose(float bias_rate, bool override_checks){
 
     //check if we're at the extremeties of a cardinal angle, if yes, stop execution
     float angleDeviation = cardinal_deviation(globalTheta);
-    if(angleDeviation > 33){
+    if(angleDeviation > kMaxCardinalDeviation){
         log_slant_reject(globalTheta, angleDeviation, now);
         return; //we're too slanted
     }
@@ -141,8 +154,8 @@ void WallLocalization::reset_pose(float bias_rate, bool override_checks){
     WallSensor::Side desired_sensor_side_x = (x > 0 ? front_side - 1 : front_side + 1);//Need to know whether it's on the negative or positive side of the axis
     WallSensor::Side desired_sensor_side_y = (y > 0 ? front_side : front_side - 2);
 
-    apply_axis(x, desired_sensor_side_x, "x", xUncertainty, globalTheta, bias_rate, override_checks, now);
-    apply_axis(y, desired_sensor_side_y, "y", yUncertainty, globalTheta, bias_rate, override_checks, now);
+    apply_axis(x, y, true, desired_sensor_side_x, "x", xUncertainty, globalTheta, bias_rate, override_checks, now);
+    apply_axis(y, x, false, desired_sensor_side_y, "y", yUncertainty, globalTheta, bias_rate, override_checks, now);
 
     //set pose
     chassis->setPose(x,y);
@@ -163,7 +176,24 @@ WallLocalization::WallEstimate WallLocalization::estimate_from_wall(WallSensor::
     return est;
 }
 
-void WallLocalization::apply_axis(float& val, WallSensor::Side side, const char* axisName, AxisUncertainty& uncertainty, float globalTheta, float bias_rate, bool override_checks, int now){
+bool WallLocalization::beam_clear_of_corner(WallSensor* sensor, bool isXAxis, float x, float y, float globalTheta, double& hitAlong){
+    float beamRad = degToRad(globalTheta + sideAngleDeg(sensor->side));
+    float bx = std::cos(beamRad);
+    float by = std::sin(beamRad);
+
+    float sx = x + sensor->vertOffset * bx + sensor->horizOffset * by;
+    float sy = y + sensor->vertOffset * by - sensor->horizOffset * bx;
+
+    float wall = 70.0f * sgn(isXAxis ? x : y);
+    float towardWall = isXAxis ? bx : by;
+    if(towardWall * sgn(wall) <= 0.01f) return false;
+
+    float travel = (wall - (isXAxis ? sx : sy)) / towardWall;
+    hitAlong = isXAxis ? sy + travel * by : sx + travel * bx;
+    return std::fabs(hitAlong) <= kCornerLimit;
+}
+
+void WallLocalization::apply_axis(float& val, float otherVal, bool isXAxis, WallSensor::Side side, const char* axisName, AxisUncertainty& uncertainty, float globalTheta, float bias_rate, bool override_checks, int now){
     WallSensor* sensor = find_sensor(side);
     if(sensor != nullptr && !sensor->hasFreshSample()) return;
 
@@ -184,11 +214,15 @@ void WallLocalization::apply_axis(float& val, WallSensor::Side side, const char*
         return;
     }
 
+    float robotX = isXAxis ? val : otherVal;
+    float robotY = isXAxis ? otherVal : val;
+    bool cornerRisk = !beam_clear_of_corner(sensor, isXAxis, robotX, robotY, globalTheta, entry.hitAlong) && !override_checks;
+
     bool badReading = sensor->isObviouslyBad() && !override_checks;
     double wallVal = badReading ? val : est.coordinate;
     bool withinGate = fabs(val - wallVal) < entry.gate || override_checks;
 
-    entry.accepted = withinGate && !badReading;
+    entry.accepted = withinGate && !badReading && !cornerRisk;
     if(entry.accepted){
         val -= (val - wallVal) * bias_rate;
         uncertainty.relax(bias_rate);
@@ -197,7 +231,7 @@ void WallLocalization::apply_axis(float& val, WallSensor::Side side, const char*
     entry.distFromWall = est.distFromWall;
     entry.wallVal = wallVal;
     entry.errorIn = entry.poseVal - wallVal;
-    entry.reject = entry.accepted ? "" : (badReading ? "bad_reading" : "pose_mismatch");
+    entry.reject = entry.accepted ? "" : (badReading ? "bad_reading" : (cornerRisk ? "corner_risk" : "pose_mismatch"));
     log_axis(entry);
 }
 
@@ -207,12 +241,12 @@ void WallLocalization::log_axis(const AxisLog& entry){
         "{{\"t\": {}, \"axis\": \"{}\", \"side\": \"{}\", \"accepted\": {}, \"reject\": \"{}\", "
         "\"distFromWall\": {:.2f}, \"poseVal\": {:.2f}, \"wallVal\": {:.2f}, \"errorIn\": {:.2f}, "
         "\"confidence\": {}, \"objectSize\": {}, \"gate\": {:.2f}, \"travel\": {:.2f}, "
-        "\"theta\": {:.1f}, \"angleDev\": 0}}\n",
+        "\"theta\": {:.1f}, \"angleDev\": 0, \"hitAlong\": {:.2f}}}\n",
         entry.now, entry.axisName, sideToStr(entry.side), entry.accepted ? "true" : "false", entry.reject,
         entry.distFromWall, entry.poseVal, entry.wallVal, entry.errorIn,
         entry.sensor != nullptr ? entry.sensor->getConfidence() : 0,
         entry.sensor != nullptr ? entry.sensor->getObjectSize() : 0,
-        entry.gate, entry.travel, entry.globalTheta));
+        entry.gate, entry.travel, entry.globalTheta, entry.hitAlong));
 }
 
 void WallLocalization::log_slant_reject(float globalTheta, float angleDeviation, int now){

@@ -37,7 +37,7 @@
 #include "Commands/Tuning/MoveToPointDialTest.h"
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
 
-bool wall_enabled=false;
+bool wall_enabled=true;
 
 #ifdef ROBOT_MAIN
 pros::MotorGroup leftMotors({17, 20});   // port numbers; negative = reversed
@@ -116,16 +116,16 @@ PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLL
 #endif
 
 
-WallSensor back_wall_sensor(14, -2.99f, 10.19f,  WallSensor::Side::BACK);
+WallSensor back_wall_sensor(14, -2.75f, 8.625f,  WallSensor::Side::BACK);
 
 //vertOffset=0.75  horizOffset=7.26
-WallSensor left_wall_sensor(9, 0.75f, 7.26f,  WallSensor::Side::LEFT);
+WallSensor left_wall_sensor(9, 2.25f, 6.875f,  WallSensor::Side::LEFT);
 
 // vertOffset=7.30  horizOffset=1.80
 WallSensor front_wall_sensor(17, 1.80f, 8.1f,  WallSensor::Side::FRONT);
 
 
-WallSensor right_wall_sensor(4, -2.50f, 6.50f,  WallSensor::Side::RIGHT);
+WallSensor right_wall_sensor(4, -2.625f, 6.50f,  WallSensor::Side::RIGHT);
 
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
@@ -186,10 +186,10 @@ void initialize() {
 	//compared to wireless logging
 	TELEMETRY.setMode(Telemetry::Mode::SDCard, "run_" + std::to_string(runId) + ".ndjson");
 
-	TELEMETRY.setEnabled(Telemetry::Channel::Pose, false);
-	TELEMETRY.setEnabled(Telemetry::Channel::WallLocalization, false);
+	TELEMETRY.setEnabled(Telemetry::Channel::Pose, true);
+	TELEMETRY.setEnabled(Telemetry::Channel::WallLocalization, true);
 	TELEMETRY.setEnabled(Telemetry::Channel::Lift, false);
-	TELEMETRY.setEnabled(Telemetry::Channel::Tuning, true);
+	TELEMETRY.setEnabled(Telemetry::Channel::Tuning, false);
 	TELEMETRY.setEnabled(Telemetry::Channel::Debug, true);
 
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
@@ -215,8 +215,8 @@ void initialize() {
 	chassis.angular_kS = 1910;
 #else
 	chassis.set_speeds_lateral(Speed::SLOW, {50.0, 0.0, 25.0});
-	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 60.0});
-	chassis.set_speeds_lateral(Speed::FAST, {70.0, 0.0, 70.0});
+	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 120.0});
+	chassis.set_speeds_lateral(Speed::FAST, {70.0, 0.0, 120.0});
 
 	chassis.angular_kS = 1071;
 #endif
@@ -278,13 +278,11 @@ void autonomous() {
 #else
 	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
 	//nothing here since test bot no have any formal auton
-
+//20 in y , 22.5 in x
 	(new Sequence({
-		chassis.moveToPoint(36.178, -16.616),
-		new WaitCommand(100),
-		chassis.moveToPoint(-0.807, -49.322),
-		chassis.rotate(0),
-		chassis.moveToPoint(-17.007, -46.877, true)
+		chassis.moveToPoint(36.178, -16.616, 3.4),
+		chassis.moveToPoint(-0.807, -49.322, 3.4),
+		chassis.moveToPoint(-17.007, -46.877, 0, true)
 	}))->schedule();
 
 	uint32_t now = pros::millis();
@@ -328,8 +326,8 @@ void opcontrol() {
 	// CommandScheduler::schedule(&ff_test);
 
 
-	AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
-	angularTune.schedule();
+	// AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
+	// angularTune.schedule();
 	//LateralPIDTune lateralTune(&chassis, 36, 10000);
 
 	// Step-response test for cascade_lift_pid (declared near the other

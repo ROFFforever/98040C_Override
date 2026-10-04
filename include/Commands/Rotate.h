@@ -20,12 +20,13 @@ class Rotate : public Command{
     bool finished=false;
     double start_time;
     double settle_range;
+    double early_exit_range;
     int exit_consecutive_counter=0; //used to verify that robot has reached goal position for multiple ticks
 
 
     public:
-    Rotate(double target_ang, drivetrain* drive, double max_time=Units::AUTO_TIME, double settle_range=Units::AUTO, int max_speed=127);
-    Rotate(std::function<double()> target_supplier, drivetrain* drive, double max_time=Units::AUTO_TIME, double settle_range=Units::AUTO, int max_speed=127);
+    Rotate(double target_ang, drivetrain* drive, double early_exit_range=0, double max_time=Units::AUTO_TIME, double settle_range=Units::AUTO, int max_speed=127);
+    Rotate(std::function<double()> target_supplier, drivetrain* drive, double early_exit_range=0, double max_time=Units::AUTO_TIME, double settle_range=Units::AUTO, int max_speed=127);
     void execute() override;
     void initialize() override;
     bool isFinished() override;

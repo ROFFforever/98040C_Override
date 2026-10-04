@@ -44,6 +44,7 @@ class WallLocalization : public Command {
         double errorIn = 0;
         double gate = 0;
         double travel = 0;
+        double hitAlong = 0;
         bool accepted = false;
         const char* reject = "";
         float globalTheta = 0;
@@ -55,7 +56,8 @@ class WallLocalization : public Command {
     bool has_fresh_sensor();
     float cardinal_deviation(float globalTheta);
     WallEstimate estimate_from_wall(WallSensor::Side side, float poseVal, float globalTheta);
-    void apply_axis(float& val, WallSensor::Side side, const char* axisName, AxisUncertainty& uncertainty, float globalTheta, float bias_rate, bool override_checks, int now);
+    bool beam_clear_of_corner(WallSensor* sensor, bool isXAxis, float x, float y, float globalTheta, double& hitAlong);
+    void apply_axis(float& val, float otherVal, bool isXAxis, WallSensor::Side side, const char* axisName, AxisUncertainty& uncertainty, float globalTheta, float bias_rate, bool override_checks, int now);
     void log_axis(const AxisLog& entry);
     void log_slant_reject(float globalTheta, float angleDeviation, int now);
 
