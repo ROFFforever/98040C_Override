@@ -14,8 +14,10 @@
 
 class Rotate; //Need to have in order to build factory methods
 class tank_motion_profile;
+class Swing;
 
 enum class Speed { SLOW, NORMAL, FAST }; //these are motion params(contains: initial velocity, end velocity, acceleration, and cruise velocity)
+enum class DriveSide { LEFT, RIGHT };
 
 class odom_wheel{
     public:
@@ -123,6 +125,9 @@ class drivetrain : public Subsystem{
     double get_angular_velocity(); // rad/sec, differentiated from getAngle() the same way as get_lateral_velocity()
     void setVoltageLeft(int millivolts);
     void setVoltageRight(int millivolts);
+    pros::MotorBrake getBrakeMode(DriveSide side);
+    void setBrakeMode(DriveSide side, pros::MotorBrake mode);
+    void brake(DriveSide side);
 
     //these are here for backup tracking in case dead wheel isn't available
     double getLeftDistance();  // total inches the left side has rolled since motor init/tare
@@ -149,6 +154,9 @@ class drivetrain : public Subsystem{
     //resolved lazily from live pose, same as moveToPoint's rotate step. backwards=true faces the
     //robot's back toward the point instead of its front.
     Rotate* rotate_to_point(double x, double y, double early_exit_range = 0, bool backwards = false,
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
+
+    Swing* swing(double target_ang, DriveSide locked_side, bool reverse = false, double early_exit_range = 0,
                     double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
 
     tank_motion_profile* Tank_motion_profile(double x, double y, double early_exit_range = 0, Speed speed = Speed::NORMAL, double max_time=Units::AUTO_TIME, double settle_range = Units::AUTO, bool backwards = false);

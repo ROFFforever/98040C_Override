@@ -65,7 +65,7 @@ class WallLocalization : public Command {
     enum class Quadrant { PosXPosY, PosXNegY, NegXPosY, NegXNegY };
 
     WallLocalization(std::vector<WallSensor*> sensors, drivetrain* chassis,
-                     double base_gate = 2.5, double drift_fraction = 0.05, double max_gate = 12.0)
+                     double base_gate = 1.8, double drift_fraction = 0.05, double max_gate = 6.0)
         : sensors(sensors), chassis(chassis),
           xUncertainty(base_gate, drift_fraction, max_gate),
           yUncertainty(base_gate, drift_fraction, max_gate) {}

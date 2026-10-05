@@ -16,7 +16,7 @@ const char* sideToStr(WallSensor::Side side){
     return "UNKNOWN";
 }
 
-constexpr float kMaxCardinalDeviation = 40.0f;
+constexpr float kMaxCardinalDeviation = 90.0f;
 constexpr float kCornerLimit = 60.0f;
 
 float sideAngleDeg(WallSensor::Side side){

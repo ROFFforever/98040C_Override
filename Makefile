@@ -29,7 +29,7 @@ USE_PACKAGE:=1
 EXCLUDE_COLD_LIBRARIES:=
 
 COLD_DIRS := commandScheduler util Commands/TeleopCommands Commands/Tuning Controllers Autons Telemetry
-COLD_FILES := Subsystems/Lift.cpp Subsystems/Motors.cpp Subsystems/piston.cpp Subsystems/drivetrain.cpp Commands/LiftMoveToCommand.cpp Commands/Rotate.cpp Commands/tank_motion_profile.cpp
+COLD_FILES := Subsystems/Lift.cpp Subsystems/Motors.cpp Subsystems/piston.cpp Subsystems/drivetrain.cpp Commands/LiftMoveToCommand.cpp Commands/Rotate.cpp Commands/Swing.cpp Commands/tank_motion_profile.cpp
 EXCLUDE_SRCDIRS += $(foreach d,$(COLD_DIRS),$(SRCDIR)/$(d)) $(foreach f,$(COLD_FILES),$(SRCDIR)/$(f))
 COLD_LIBAR := $(FWDIR)/Override98040C.a
 COLD_CXXSRC := $(foreach d,$(COLD_DIRS),$(wildcard $(SRCDIR)/$(d)/*.cpp)) $(foreach f,$(COLD_FILES),$(SRCDIR)/$(f))

@@ -25,6 +25,7 @@ class Rotate : public Command{
 
 
     public:
+    double skip_range = 0;
     Rotate(double target_ang, drivetrain* drive, double early_exit_range=0, double max_time=Units::AUTO_TIME, double settle_range=Units::AUTO, int max_speed=127);
     Rotate(std::function<double()> target_supplier, drivetrain* drive, double early_exit_range=0, double max_time=Units::AUTO_TIME, double settle_range=Units::AUTO, int max_speed=127);
     void execute() override;

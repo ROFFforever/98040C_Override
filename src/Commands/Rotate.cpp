@@ -13,7 +13,7 @@ Rotate::Rotate(double target_ang, drivetrain* drive, double early_exit_range, do
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
     this->max_time = auto_time ? 1.0 : max_time; //placeholder, resolved for real in initialize() once the profile exists
-    this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
+    this->settle_range = (settle_range == Units::AUTO ? settle_range_config : degToRad(settle_range));
 };
 
 Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, double early_exit_range, double max_time, double settle_range, int max_speed){
@@ -23,7 +23,7 @@ Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, doubl
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
     this->max_time = auto_time ? 1.0 : max_time; //placeholder, resolved for real in initialize() once the profile exists
-    this->settle_range = (settle_range == Units::AUTO ? settle_range_config : settle_range);
+    this->settle_range = (settle_range == Units::AUTO ? settle_range_config : degToRad(settle_range));
 };
 
 void Rotate::initialize(){
@@ -36,6 +36,7 @@ void Rotate::initialize(){
 
     initial_ang=drive->gpos().theta;
     ang_error = angleDifference(target_ang,initial_ang);
+    if(skip_range > 0 && fabs(ang_error) <= skip_range) finished = true;
     drive->residual_angular_pid->reset(ang_error);
     drive->residual_angular_pid->set_target(ang_error);
 
@@ -47,6 +48,7 @@ void Rotate::initialize(){
 }
 
 void Rotate::execute(){
+    if(finished) return;
     double now = pros::millis();
     double dt = (now - start_time) / 1000.0; //get change in time
     if(dt > max_time){

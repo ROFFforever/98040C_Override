@@ -6,6 +6,7 @@
 #include "util/mathUtils.h"
 #include "Commands/tank_motion_profile.hpp"
 #include "Commands/Rotate.h"
+#include "Commands/Swing.h"
 
 double odom_wheel::get_dist_delta(){
     if(odom_sensor != nullptr){ 
@@ -108,8 +109,10 @@ void drivetrain::periodic(){
     }
 
     if(TELEMETRY.isEnabled(Telemetry::Channel::Pose)){
-        TELEMETRY.send(Telemetry::Channel::Pose, std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}}}\n",
-            pros::millis(), pos.x, pos.y, radToDeg(pos.theta)));
+        double vertDist = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr) ? vert_odom->current_val : 0.0;
+        double horizDist = (horiz_odom != nullptr && horiz_odom->odom_sensor != nullptr) ? horiz_odom->current_val : 0.0;
+        TELEMETRY.send(Telemetry::Channel::Pose, std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}, \"vert\": {}, \"horiz\": {}, \"motorL\": {}, \"motorR\": {}}}\n",
+            pros::millis(), pos.x, pos.y, radToDeg(pos.theta), vertDist, horizDist, getLeftDistance(), getRightDistance()));
         }
 }
 
@@ -125,6 +128,21 @@ void drivetrain::setVoltageLeft(int millivolts){
 }
 void drivetrain::setVoltageRight(int millivolts){
     rightMotors->move_voltage(millivolts);
+}
+
+pros::MotorBrake drivetrain::getBrakeMode(DriveSide side){
+    pros::MotorGroup* motors = side == DriveSide::LEFT ? leftMotors : rightMotors;
+    return motors->get_brake_mode();
+}
+
+void drivetrain::setBrakeMode(DriveSide side, pros::MotorBrake mode){
+    pros::MotorGroup* motors = side == DriveSide::LEFT ? leftMotors : rightMotors;
+    motors->set_brake_mode_all(mode);
+}
+
+void drivetrain::brake(DriveSide side){
+    pros::MotorGroup* motors = side == DriveSide::LEFT ? leftMotors : rightMotors;
+    motors->brake();
 }
 
 //assume we have at least one tracking device
@@ -311,12 +329,18 @@ Rotate* drivetrain::rotate_to_point(double x, double y, double early_exit_range,
     }, early_exit_range, max_time, settle_range, max_speed);
 }
 
+Swing* drivetrain::swing(double target_ang, DriveSide locked_side, bool reverse, double early_exit_range, double max_time, double settle_range, int max_speed){
+    return new Swing(target_ang, locked_side, this, reverse, early_exit_range, max_time, settle_range, max_speed);
+}
+
 constexpr double move_to_point_turn_early_exit = 5.0;
+constexpr double move_to_point_skip_rotate_range = 15.0;
 
 Sequence* drivetrain::moveToPoint(double x, double y, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range){
 
     //Create the two commands.
-    Command* rotate_command = rotate_to_point(x, y, move_to_point_turn_early_exit, backwards);
+    Rotate* rotate_command = rotate_to_point(x, y, move_to_point_turn_early_exit, backwards);
+    rotate_command->skip_range = degToRad(move_to_point_skip_rotate_range);
     Command* tank_motion_profile_command = Tank_motion_profile(x, y, early_exit_range, speed, max_time, settle_range, backwards);
 
     //Create a sequence and return it

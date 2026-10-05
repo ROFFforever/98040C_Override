@@ -18,6 +18,8 @@
 #include "Telemetry/telemetry.h"
 #include "Commands/Tuning/FeedForwardTest.h"
 #include "Commands/Rotate.h"
+#include "Commands/Swing.h"
+#include "Commands/tank_motion_profile.hpp"
 #include "Subsystems/Lift.h"
 #include "Commands/LiftMoveToCommand.h"
 #include "Commands/WaitCommand.h"
@@ -37,7 +39,7 @@
 #include "Commands/Tuning/MoveToPointDialTest.h"
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
 
-bool wall_enabled=true;
+bool wall_enabled=false;
 
 #ifdef ROBOT_MAIN
 pros::MotorGroup leftMotors({17, 20});   // port numbers; negative = reversed
@@ -279,10 +281,42 @@ void autonomous() {
 	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
 	//nothing here since test bot no have any formal auton
 //20 in y , 22.5 in x
+
+	//AUTON SEQUENCE TEST 1
+	// (new Sequence({
+	// 	chassis.moveToPoint(36.178, -16.616, 3.4),
+	// 	chassis.moveToPoint(-0.807, -49.322, 3.4),
+	// 	chassis.moveToPoint(-9.007, -46.877, 0, true)
+	// }))->schedule();
+
+	// AUTON SEQUENCE TEST 2
+	// (new Sequence({
+	// 	chassis.swing(180, DriveSide::LEFT, false, 5), //early exit range was 10 before, as of 4:53PM im changing it to be higher for testing.
+	// 	chassis.moveToPoint(-12.007, -46.877, 0)
+	// }))->schedule();
+
 	(new Sequence({
-		chassis.moveToPoint(36.178, -16.616, 3.4),
-		chassis.moveToPoint(-0.807, -49.322, 3.4),
-		chassis.moveToPoint(-17.007, -46.877, 0, true)
+		new WaitCommand(800),
+
+		chassis.moveForward(12, false, 30),
+		new WaitCommand(600),
+		chassis.rotate(180),
+		new WaitCommand(600),
+
+		chassis.moveForward(48, false, 25),
+		new WaitCommand(600),
+		chassis.moveForward(48, true, 25),
+		new WaitCommand(600),
+
+		chassis.moveForward(48, false, 70),
+		new WaitCommand(600),
+		chassis.moveForward(48, true, 70),
+		new WaitCommand(600),
+
+		chassis.rotate(270),
+		new WaitCommand(600),
+		chassis.rotate(0),
+		new WaitCommand(800)
 	}))->schedule();
 
 	uint32_t now = pros::millis();
