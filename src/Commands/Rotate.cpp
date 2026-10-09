@@ -1,6 +1,8 @@
 #include "Commands/Rotate.h"
 #include <vector>
 #include <algorithm>
+#include <format>
+#include "Telemetry/telemetry.h"
 
 const double settle_range_config = degToRad(5); //should be a good balance of speed and accuracy
 const double auto_time_base = 0.5;
@@ -45,6 +47,10 @@ void Rotate::initialize(){
     }
 
     start_time=pros::millis();
+
+    TELEMETRY.send(Telemetry::Channel::Debug, std::format(
+        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"rotate\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}, \"skipped\": {}}}\n",
+        start_time, radToDeg(target_ang), radToDeg(initial_ang), radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV, finished));
 }
 
 void Rotate::execute(){
