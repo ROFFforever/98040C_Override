@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "name": "auton_1",
+  "style": "lines",
+  "start": {
+    "x": -4.9,
+    "y": -60.1,
+    "heading": 270.0
+  },
+  "set_pose": true,
+  "extra_params": "",
+  "extra_includes": "",
+  "time_limit": 15.0,
+  "items": [
+    {
+      "type": "swing",
+      "params": {
+        "target": 336.0,
+        "side": "RIGHT",
+        "reverse": true,
+        "early_exit": 10.0,
+        "max_time": null,
+        "settle": null,
+        "max_speed": 127
+      },
+      "async": false,
+      "note": ""
+    },
+    {
+      "type": "move_to_point",
+      "params": {
+        "x": -17.4,
+        "y": -50.6,
+        "early_exit": 0.0,
+        "backwards": true,
+        "speed": "NORMAL",
+        "max_time": null,
+        "settle": null
+      },
+      "async": false,
+      "note": ""
+    }
+  ]
+}

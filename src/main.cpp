@@ -1,6 +1,8 @@
 #include "main.h"
 #include "RobotConfig.h"
 #include "Commands/TeleopCommands/LiftTeleopCommand.h"
+#include "Commands/TeleopCommands/ClawTeleopCommand.h"
+#include "Subsystems/Claw.h"
 #include "Units.h"
 #include "Subsystems/drivetrain.h"
 #include "Telemetry/telemetry.h"
@@ -21,7 +23,6 @@
 #include "Commands/Swing.h"
 #include "Commands/tank_motion_profile.hpp"
 #include "Subsystems/Lift.h"
-#include "Commands/LiftMoveToCommand.h"
 #include "Commands/WaitCommand.h"
 #include "Autons/SoloAWP.h"
 #include "Autons/OdomAccuracyTest.h"
@@ -34,7 +35,6 @@
 
 #include "Commands/Tuning/AngularPIDTune.h"   // add near your other Commands includes
 #include "Commands/Tuning/LateralPIDTune.h"
-#include "Commands/Tuning/LiftPIDTune.h"
 #include "Commands/Tuning/RotateDialTest.h"
 #include "Commands/Tuning/MoveToPointDialTest.h"
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
@@ -42,8 +42,8 @@
 bool wall_enabled=false;
 
 #ifdef ROBOT_MAIN
-pros::MotorGroup leftMotors({17, 20});   // port numbers; negative = reversed
-pros::MotorGroup rightMotors({-18, -19});
+pros::MotorGroup leftMotors({11,5,4});   // port numbers; negative = reversed
+pros::MotorGroup rightMotors({12,-7,6});
 pros::Imu imu(4);
 pros::Rotation vertRotation(6); //reverse angle
 pros::Rotation horizRotation(3); //reverse angle
@@ -64,18 +64,12 @@ velocity_feed_forward ff_angular(0.931 *1000,  // kV
 0.1025*1000, // kA
 1.91 * 1000);  // kS
 
-pros::Motor intake_motor_1(15);
-pros::Motor intake_motor_2(16);
-Intake intake_motors({{&intake_motor_1, false},{&intake_motor_2, false}});
-
-pros::adi::DigitalOut piston_1('a');
-piston claw_piston(piston_1);
 
 #ifdef HAS_LIFT
-pros::Motor lift_1(5);
-pros::Motor lift_2(7);
-PID cascade_lift_pid(140,0,0,0,0);
-Lift lift({{&lift_1, false}, {&lift_2, true}}, &cascade_lift_pid);
+pros::Motor lift_1(20);
+Lift lift({{&lift_1, false}});
+pros::Motor claw_1(8);
+Claw claw({{&claw_1, true}}); //inverted
 #endif
 
 #else // ROBOT_TEST
@@ -111,10 +105,10 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 
 #ifdef HAS_LIFT
 LiftTeleopCommand liftTeleop(&lift, &controller, pros::E_CONTROLLER_DIGITAL_R2, pros::E_CONTROLLER_DIGITAL_R1);
+ClawTeleopCommand clawTeleop(&claw, &controller, pros::E_CONTROLLER_DIGITAL_L1, pros::E_CONTROLLER_DIGITAL_L2);
 #endif
 #ifdef ROBOT_MAIN
-IntakeTeleopCommand intakeTeleop(&intake_motors, &controller, pros::E_CONTROLLER_DIGITAL_L2, pros::E_CONTROLLER_DIGITAL_L1);
-PistonTeleopCommand clawPistonTeleop(&claw_piston, &controller, pros::E_CONTROLLER_DIGITAL_A);
+
 #endif
 
 
@@ -233,12 +227,15 @@ void initialize() {
 	wallLocalization.schedule();
 	}
 #ifdef ROBOT_MAIN
-	CommandScheduler::registerSubsystem(&intake_motors, &intakeTeleop);
-	CommandScheduler::registerSubsystem(&claw_piston, &clawPistonTeleop);
+
 #endif
 #ifdef HAS_LIFT
 	CommandScheduler::registerSubsystem(&lift, &liftTeleop);
+	CommandScheduler::registerSubsystem(&claw, &clawTeleop);
 #endif
+
+	//runs CommandScheduler::run() every 10ms in its own task from here on (autonomous/opcontrol no longer call it)
+	CommandScheduler::start();
 }
 
 /**
@@ -261,22 +258,11 @@ void competition_initialize() {}
 
 
 void autonomous() {
-#ifdef HAS_LIFT
-	//let down the toggle switcher
-	intake_motor_2.move_voltage(-12000);
-	pros::delay(450);
-		intake_motor_2.move_voltage(0);
+	//no teleop commands grabbing subsystems between auton steps, and clear out anything running from disabled
+	CommandScheduler::setDefaultsEnabled(false);
+	CommandScheduler::cancelAll();
 
-	(new Sequence({
-		first_alliance_pin(&chassis, &claw_piston, &lift),
-		// get_second_pin(&chassis, &claw_piston, &lift),
-		go_back_toggle(&chassis, &claw_piston, &lift)
-	}))->schedule();
-	uint32_t now = pros::millis();
-	while(true){
-    CommandScheduler::run();
-    pros::Task::delay_until(&now, 10);
-	}
+#ifdef HAS_LIFT
 #else
 	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
 	//nothing here since test bot no have any formal auton
@@ -295,35 +281,27 @@ void autonomous() {
 	// 	chassis.moveToPoint(-12.007, -46.877, 0)
 	// }))->schedule();
 
-	(new Sequence({
-		new WaitCommand(800),
+	pros::delay(800);
 
-		chassis.moveForward(12, false, 30),
-		new WaitCommand(600),
-		chassis.rotate(180),
-		new WaitCommand(600),
+	await(chassis.moveForward(12, false, 30));
+	pros::delay(600);
+	await(chassis.rotate(180));
+	pros::delay(600);
 
-		chassis.moveForward(48, false, 25),
-		new WaitCommand(600),
-		chassis.moveForward(48, true, 25),
-		new WaitCommand(600),
+	await(chassis.moveForward(48, false, 25));
+	pros::delay(600);
+	await(chassis.moveForward(48, true, 25));
+	pros::delay(600);
 
-		chassis.moveForward(48, false, 70),
-		new WaitCommand(600),
-		chassis.moveForward(48, true, 70),
-		new WaitCommand(600),
+	await(chassis.moveForward(48, false, 70));
+	pros::delay(600);
+	await(chassis.moveForward(48, true, 70));
+	pros::delay(600);
 
-		chassis.rotate(270),
-		new WaitCommand(600),
-		chassis.rotate(0),
-		new WaitCommand(800)
-	}))->schedule();
-
-	uint32_t now = pros::millis();
-	while(true){
-		CommandScheduler::run();
-		pros::Task::delay_until(&now, 10);
-	}
+	await(chassis.rotate(270));
+	pros::delay(600);
+	await(chassis.rotate(0));
+	pros::delay(800);
 #endif
 	
 }
@@ -337,6 +315,10 @@ void opcontrol() {
 	// into teleop and making the drivetrain grab when the sticks are released.
 	leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
 	rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+
+	//stop whatever auton left running and hand subsystems back to the teleop commands
+	CommandScheduler::cancelAll();
+	CommandScheduler::setDefaultsEnabled(true);
 
 	//ALL OF THE BELOW ARE SIMPLY CONFIG/TUNING TESTS:
 
@@ -391,8 +373,9 @@ void opcontrol() {
 	int counter = 0;
 
 	uint32_t now = pros::millis();
+	//scheduler runs in its own task now (see CommandScheduler::start()), this loop just has to stay alive
+	//so the tuning commands above (stack variables) don't go out of scope
 	while(true){
-		CommandScheduler::run();
 		counter++;
 
 		if(counter == 10){
@@ -419,6 +402,5 @@ void opcontrol() {
 		}
 #endif
 
-		pros::Task::delay_until(&now, 10); //gaurentees that we run on 100hz, if loop took like 1 millisecond then sleeps only 9
 	}
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "subsystem.h"
+#include <atomic>
 #include <vector>
 
 /**
@@ -74,4 +75,10 @@ public:
     [[nodiscard]] bool scheduled() const;
 
     virtual ~Command() = default;
+
+private:
+    friend class CommandScheduler;
+    // Atomic because scheduled() gets read from other tasks (e.g. await() in autonomous)
+    std::atomic<bool> active{false};  // currently running in the scheduler
+    std::atomic<bool> pending{false}; // schedule() was called from another task, scheduler hasn't picked it up yet
 };

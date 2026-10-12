@@ -1,0 +1,12 @@
+{
+  "active": "18 x 18 (max size)",
+  "profiles": [
+    {
+      "name": "18 x 18 (max size)",
+      "length_in": 18.0,
+      "width_in": 18.0,
+      "center_forward_in": 0.0,
+      "center_left_in": 0.0
+    }
+  ]
+}

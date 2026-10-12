@@ -1,13 +1,12 @@
 #include "Autons/SoloAWP.h"
 #include "Commands/Rotate.h"
-#include "Commands/LiftMoveToCommand.h"
 #include "Commands/WaitCommand.h"
 #include "Commands/InstantCommand.h"
 #include "Commands/tank_motion_profile.hpp"
 #include "CommandScheduler/Parallel.h"
 #include "util/mathUtils.h"
 
-Sequence* first_alliance_pin(drivetrain* chassis, piston* piston, Lift* lift){
+Sequence* first_alliance_pin(drivetrain* chassis, piston* piston){
     //one-time setup: seed odometry to this auton's actual starting position on the
     //field, before the chain below ever runs - not a Sequence step, just a plain call
     chassis->setPose(-6.5, -61.3, degToRad(270));
@@ -16,46 +15,35 @@ Sequence* first_alliance_pin(drivetrain* chassis, piston* piston, Lift* lift){
         chassis->moveForward(15, true, 50),
         new WaitCommand(100),
         chassis->rotate(0),
-        new Parallel({
-            lift->moveToCommand(-1200),
-            chassis->moveToPoint(-15.4, -44.5, 0, true, Speed::NORMAL, 1.5, Units::AUTO)
-        }),
+        chassis->moveToPoint(-15.4, -44.5, 0, true, Speed::NORMAL, 1.5, Units::AUTO),
         chassis->rotate_to_point(-23.4, -44, 0, true),
         chassis->moveForward(1.4, false, 60),
-        lift->moveToCommand(500),
         new InstantCommand([piston]{ piston->toggle(); }),
         new WaitCommand(300)
 
     });
 }
 
-Sequence* get_second_pin(drivetrain* chassis, piston* piston, Lift* lift){
+Sequence* get_second_pin(drivetrain* chassis, piston* piston){
 
     return new Sequence({
         chassis->moveForward(6, false, 50),
         new WaitCommand(100),
-        new Parallel({
-            lift->moveToCommand(300),
-            chassis->moveToPoint(-20.589, -27.2, 0, true)
-        }),
+        chassis->moveToPoint(-20.589, -27.2, 0, true),
         new InstantCommand([piston]{ piston->toggle(); }),
         new WaitCommand(200),
-        new Parallel({
-            lift->moveToCommand(-5000),
-            new Sequence({
-                new WaitCommand(300),
-                chassis->moveToPoint(-25, -37.5, 0, true, Speed::NORMAL, 1.2)
-            })
+        new Sequence({
+            new WaitCommand(300),
+            chassis->moveToPoint(-25, -37.5, 0, true, Speed::NORMAL, 1.2)
         }),
         chassis->moveForward(2.5, false, 60),
-           lift->moveToCommand(100),
         new InstantCommand([piston]{ piston->toggle(); }),
         
     });
 }
 
 
-Sequence* go_back_toggle(drivetrain* chassis, piston* piston, Lift* lift){
+Sequence* go_back_toggle(drivetrain* chassis, piston* piston){
     return new Sequence(
         {new WaitCommand(100),
         chassis->rotate(0),
