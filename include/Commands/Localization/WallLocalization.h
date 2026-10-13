@@ -5,6 +5,7 @@
 #include "Subsystems/drivetrain.h"
 #include "Commands/Localization/AxisUncertainty.h"
 #include "Units.h"
+#include <string>
 
 // THIS COMMAND'S PURPOSE:
 
@@ -26,6 +27,7 @@ class WallLocalization : public Command {
     AxisUncertainty yUncertainty;
     double lastOdometer = 0;
     bool travelSeeded = false;
+    double baseGate, driftFraction, maxGate;
 
     struct WallEstimate {
         bool hasSensor = false;
@@ -68,7 +70,9 @@ class WallLocalization : public Command {
                      double base_gate = 1.8, double drift_fraction = 0.05, double max_gate = 6.0)
         : sensors(sensors), chassis(chassis),
           xUncertainty(base_gate, drift_fraction, max_gate),
-          yUncertainty(base_gate, drift_fraction, max_gate) {}
+          yUncertainty(base_gate, drift_fraction, max_gate),
+          baseGate(base_gate), driftFraction(drift_fraction), maxGate(max_gate) {}
+    static constexpr float kDefaultBiasRate = 0.14f;
     WallSensor::Side get_side_facing_front(float globalTheta); //finds which side robot is currently facing
     double get_dist_from_wall(WallSensor::Side side, float globalTheta); //finds distance to wall accounting for offsets of distance sensor from absolute center
     WallSensor* find_sensor(WallSensor::Side side); //returns sensor of that side(we will only ever use a max of one sensor per side)
@@ -77,8 +81,9 @@ class WallLocalization : public Command {
      * @param bias_rate scale from 0-1 which influences how much wall sensor's calculations change pose
      * @param override_checks Set this to true if you want to disable checking(you are confident it will reset correctly)
      */
-    void reset_pose(float bias_rate=0.14,bool override_checks=false);
+    void reset_pose(float bias_rate=kDefaultBiasRate,bool override_checks=false);
     bool set_initial_pose(float headingDeg, Quadrant quadrant);
+    std::string config_json(); //for the config event
     void initialize() override;
     void execute() override;
     bool isFinished() override;

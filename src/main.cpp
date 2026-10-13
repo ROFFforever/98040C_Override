@@ -26,6 +26,7 @@
 #include "Commands/WaitCommand.h"
 #include "Autons/SoloAWP.h"
 #include "Autons/OdomAccuracyTest.h"
+#include <format>
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
 #include "Commands/TeleopCommands/PistonTeleopCommand.h"
@@ -129,6 +130,32 @@ drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert
 WallLocalization wallLocalization({&back_wall_sensor, &left_wall_sensor, &front_wall_sensor, &right_wall_sensor}, &chassis);
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
 
+//logs tuning values so run analysis knows what this build used. add new tuning values here too
+void logRobotConfig(){
+#ifdef ROBOT_MAIN
+	const char* robot = "MAIN";
+#else
+	const char* robot = "TEST";
+#endif
+	auto ang = angular_pid.get_consts();
+	auto lat = residual_lateral_PID.get_consts();
+	auto ffl = ff_lateral.get_consts();
+	auto ffa = ff_angular.get_consts();
+	TELEMETRY.send(Telemetry::Channel::Debug, std::format(
+		"{{\"t\": {}, \"event\": \"config\", \"robot\": \"{}\", \"wallEnabled\": {}, \"imuPort\": {}, "
+		"\"vertOdom\": {{\"present\": {}, \"offset\": {}, \"diameter\": {}}}, "
+		"\"horizOdom\": {{\"present\": {}, \"offset\": {}, \"diameter\": {}}}, "
+		"\"angularPID\": [{}, {}, {}], \"lateralPID\": [{}, {}, {}], "
+		"\"ffLateral\": {{\"kV\": {}, \"kA\": {}, \"kS\": {}}}, \"ffAngular\": {{\"kV\": {}, \"kA\": {}, \"kS\": {}}}, "
+		"\"angularKS\": {}, \"lateralKS\": {}, {}}}\n",
+		pros::millis(), robot, wall_enabled, imu.get_port(),
+		vert.odom_sensor != nullptr, vert.offset, vert.wheel_diameter,
+		horiz.odom_sensor != nullptr, horiz.offset, horiz.wheel_diameter,
+		ang[0], ang[1], ang[2], lat[0], lat[1], lat[2],
+		ffl[0], ffl[1], ffl[2], ffa[0], ffa[1], ffa[2],
+		chassis.angular_kS, chassis.lateral_kS, wallLocalization.config_json()));
+}
+
 
 //In order to sync run video with program runtime data, we send a number wirelessly over telemetry.
 //This number tells the computer what to name the video file so the right run + video can be synced
@@ -217,6 +244,7 @@ void initialize() {
 
 	chassis.angular_kS = 1071;
 #endif
+	logRobotConfig();
 
 	//drive command
 	CommandScheduler::registerSubsystem(&chassis, &arcadeDrive);

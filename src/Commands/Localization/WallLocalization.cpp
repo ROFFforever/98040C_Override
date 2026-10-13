@@ -30,6 +30,21 @@ float sideAngleDeg(WallSensor::Side side){
 }
 }
 
+std::string WallLocalization::config_json(){
+    std::string out = std::format(
+        "\"wallMaxCardinalDeg\": {:.1f}, \"wallCornerLimit\": {:.1f}, \"wallBiasRate\": {:.3f}, "
+        "\"wallBaseGate\": {:.2f}, \"wallDriftFraction\": {:.3f}, \"wallMaxGate\": {:.2f}, \"wallSensors\": {{",
+        kMaxCardinalDeviation, kCornerLimit, kDefaultBiasRate, baseGate, driftFraction, maxGate);
+    bool first = true;
+    for(WallSensor* s : sensors){
+        if(s == nullptr) continue;
+        out += std::format("{}\"{}\": {{\"port\": {}, \"horizOffset\": {:.3f}, \"vertOffset\": {:.3f}}}",
+            first ? "" : ", ", sideToStr(s->side), s->sensor->get_port(), s->horizOffset, s->vertOffset);
+        first = false;
+    }
+    return out + "}";
+}
+
 //Regular command boilerplate stuff:
 
 void WallLocalization::initialize(){ //nothing to do here yet

@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 class PID{
     private:
         double kP, kI, kD; //our PID constants
@@ -15,5 +16,6 @@ class PID{
     void set_target(double target);
     double get_target();
     bool isZero() const; //true if all gains are 0(treat as unconfigured)
+    std::array<double, 3> get_consts() const { return {kP, kI, kD}; }
 
 };
