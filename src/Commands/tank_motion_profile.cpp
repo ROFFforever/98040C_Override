@@ -2,6 +2,8 @@
 #include "Controllers/trapezoid_profile.hpp"
 #include "pros/rtos.hpp"
 #include "util/mathUtils.h"
+#include "Telemetry/telemetry.h"
+#include <format>
 
 double settle_range_config = 1.5; //1.5 inches is reasonable
 double heading_lock_distance = 6.0;
@@ -74,6 +76,10 @@ void tank_motion_profile::initialize() {
 
   drive->residual_angular_pid->set_target(targetHeading);
   max_time = max_time == Units::AUTO_TIME ? motion->totalTime() + 1.5 : max_time;
+
+  TELEMETRY.send(Telemetry::Channel::Debug, std::format(
+    "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"profile\", \"x\": {:.3f}, \"y\": {:.3f}, \"start_x\": {:.3f}, \"start_y\": {:.3f}, \"dist\": {:.3f}, \"backwards\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"cruise_vel\": {:.1f}, \"accel\": {:.1f}, \"init_vel\": {:.1f}, \"final_vel\": {:.1f}, \"profile_time\": {:.3f}, \"max_time\": {:.2f}}}\n",
+    start_time, x, y, startX, startY, dist, backwards, early_exit_range, settle_range, constraints.cruise_vel, constraints.accel, constraints.init_vel, constraints.final_vel, motion->totalTime(), max_time));
 }
 
 void tank_motion_profile::execute() {

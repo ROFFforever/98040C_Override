@@ -1,6 +1,8 @@
 #include "Commands/Swing.h"
 #include <vector>
 #include <algorithm>
+#include <format>
+#include "Telemetry/telemetry.h"
 
 const double swing_settle_range_config = degToRad(5);
 const double swing_auto_time_base = 0.5;
@@ -43,6 +45,10 @@ void Swing::initialize(){
     drive->brake(locked_side);
 
     start_time=pros::millis();
+
+    TELEMETRY.send(Telemetry::Channel::Debug, std::format(
+        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"swing\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"locked_side\": \"{}\", \"reverse\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}}}\n",
+        start_time, radToDeg(target_ang), radToDeg(initial_ang), locked_side == DriveSide::LEFT ? "LEFT" : "RIGHT", reverse, radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV));
 }
 
 void Swing::execute(){
