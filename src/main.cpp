@@ -80,7 +80,7 @@ pros::MotorGroup rightMotors({-11, -12});
 pros::Imu imu(13);
 pros::Rotation vertRotation(-16); //reverse angle
 pros::Rotation horizRotation(15); //reverse angle
-odom_wheel vert(&vertRotation, 1.25, 2.125);
+odom_wheel vert(&vertRotation, 1.25, 2.03); //was 2.125, read ~5% long vs camera
 odom_wheel horiz(&horizRotation, 0.75, 2.125);
 
 //controllers
@@ -112,7 +112,8 @@ ClawTeleopCommand clawTeleop(&claw, &controller, pros::E_CONTROLLER_DIGITAL_L1, 
 #endif
 
 
-WallSensor back_wall_sensor(14, -2.75f, 8.625f,  WallSensor::Side::BACK);
+//vertOffset was 8.625, read ~1.4in long vs camera
+WallSensor back_wall_sensor(14, -2.75f, 7.2f,  WallSensor::Side::BACK);
 
 //vertOffset=0.75  horizOffset=7.26
 WallSensor left_wall_sensor(9, 2.25f, 6.875f,  WallSensor::Side::LEFT);
