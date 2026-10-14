@@ -333,14 +333,15 @@ Swing* drivetrain::swing(double target_ang, DriveSide locked_side, bool reverse,
     return new Swing(target_ang, locked_side, this, reverse, early_exit_range, max_time, settle_range, max_speed);
 }
 
-constexpr double move_to_point_turn_early_exit = 5.0;
-constexpr double move_to_point_skip_rotate_range = 15.0;
+constexpr double move_to_point_turn_gate = 30.0; //was 15
+constexpr double move_to_point_turn_early_exit_ratio = 1.0 / 3.0; //turn exits early at gate/3
 
-Sequence* drivetrain::moveToPoint(double x, double y, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range){
+Sequence* drivetrain::moveToPoint(double x, double y, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range, double turn_gate){
+    double gate = (turn_gate == Units::AUTO ? move_to_point_turn_gate : turn_gate);
 
     //Create the two commands.
-    Rotate* rotate_command = rotate_to_point(x, y, move_to_point_turn_early_exit, backwards);
-    rotate_command->skip_range = degToRad(move_to_point_skip_rotate_range);
+    Rotate* rotate_command = rotate_to_point(x, y, gate * move_to_point_turn_early_exit_ratio, backwards);
+    rotate_command->skip_range = degToRad(gate);
     Command* tank_motion_profile_command = Tank_motion_profile(x, y, early_exit_range, speed, max_time, settle_range, backwards);
 
     //Create a sequence and return it

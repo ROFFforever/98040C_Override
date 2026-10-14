@@ -49,8 +49,8 @@ void Rotate::initialize(){
     start_time=pros::millis();
 
     TELEMETRY.send(Telemetry::Channel::Debug, std::format(
-        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"rotate\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}, \"skipped\": {}}}\n",
-        start_time, radToDeg(target_ang), radToDeg(initial_ang), radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV, finished));
+        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"rotate\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}, \"skip_range\": {:.2f}, \"skipped\": {}}}\n",
+        start_time, radToDeg(target_ang), radToDeg(initial_ang), radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV, radToDeg(skip_range), finished));
 }
 
 void Rotate::execute(){

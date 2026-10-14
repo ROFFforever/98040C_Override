@@ -4,9 +4,17 @@
 #include "util/mathUtils.h"
 #include "Telemetry/telemetry.h"
 #include <format>
+#include <algorithm>
+#include <cstdlib>
 
 double settle_range_config = 1.5; //1.5 inches is reasonable
 double heading_lock_distance = 6.0;
+
+//leave headroom for turn_mv so a side clipping at 12V doesn't eat the heading correction
+static int fwd_with_turn_room(double fwd, int turn_mv) {
+  double room = std::max(0, 12000 - std::abs(turn_mv));
+  return (int)std::clamp(fwd, -room, room);
+}
 
 tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards) {
   this->x = x;
@@ -138,8 +146,9 @@ void tank_motion_profile::execute() {
 
     int mV = dirSign * drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
     int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
-    drive->setVoltageLeft(mV - turn_mv + sgn(mV) * drive->lateral_kS);
-    drive->setVoltageRight(mV + turn_mv + sgn(mV) * drive->lateral_kS);
+    int fwd = fwd_with_turn_room(mV + sgn(mV) * drive->lateral_kS, turn_mv);
+    drive->setVoltageLeft(fwd - turn_mv);
+    drive->setVoltageRight(fwd + turn_mv);
 
     profile_over = true;
   } else {
@@ -158,8 +167,9 @@ void tank_motion_profile::execute() {
     int residual = dirSign * drive->residual_PID_lateral->update(curr_pos);
 
     //apply voltages
-    drive->setVoltageLeft(mV - turn_mv + residual);
-    drive->setVoltageRight(mV + turn_mv + residual);
+    int fwd = fwd_with_turn_room(mV + residual, turn_mv);
+    drive->setVoltageLeft(fwd - turn_mv);
+    drive->setVoltageRight(fwd + turn_mv);
   }
 }
 

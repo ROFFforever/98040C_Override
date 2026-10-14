@@ -163,7 +163,8 @@ class drivetrain : public Subsystem{
 
     //factory method that turns to the point and then moves toward it. Both using a trapazoidal motion profile
     //Uses a sequence under the hood. backwards=true backs into the point instead of driving there nose-first.
-    Sequence* moveToPoint(double x, double y, double early_exit_range = 0, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+    //turn_gate(deg): heading error under this is fixed while driving instead of turning first. 0 = always turn and settle, 15 = old behavior.
+    Sequence* moveToPoint(double x, double y, double early_exit_range = 0, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double turn_gate = Units::AUTO);
 
     //Drives straight forward/backward `distance` inches relative to current position - no rotate step.
     //Uses Speed::NORMAL's accel/final_vel shape but overrides cruise_vel with maxSpeed (inches/sec).
