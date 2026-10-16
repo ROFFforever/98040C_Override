@@ -34,6 +34,7 @@ class WallLocalization : public Command {
         bool inRange = false;
         double distFromWall = 0;
         double coordinate = 0;
+        double raw = -1; //sensor's own reading (in) before offsets, -1 = none
     };
 
     struct AxisLog {
@@ -47,6 +48,7 @@ class WallLocalization : public Command {
         double gate = 0;
         double travel = 0;
         double hitAlong = 0;
+        double raw = -1;
         bool accepted = false;
         const char* reject = "";
         float globalTheta = 0;
@@ -74,7 +76,7 @@ class WallLocalization : public Command {
           baseGate(base_gate), driftFraction(drift_fraction), maxGate(max_gate) {}
     static constexpr float kDefaultBiasRate = 0.14f;
     WallSensor::Side get_side_facing_front(float globalTheta); //finds which side robot is currently facing
-    double get_dist_from_wall(WallSensor::Side side, float globalTheta); //finds distance to wall accounting for offsets of distance sensor from absolute center
+    double get_dist_from_wall(WallSensor::Side side, float globalTheta, double* rawOut = nullptr); //finds distance to wall accounting for offsets of distance sensor from absolute center. rawOut gets the sensor's own reading
     WallSensor* find_sensor(WallSensor::Side side); //returns sensor of that side(we will only ever use a max of one sensor per side)
     /**
      * @brief resets robot if safe using appropiate distance sensors

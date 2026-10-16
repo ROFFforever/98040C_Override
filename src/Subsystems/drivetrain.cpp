@@ -8,6 +8,15 @@
 #include "Commands/Rotate.h"
 #include "Commands/Swing.h"
 
+//average measured voltage (mV) across one side's motors
+static int side_voltage(pros::MotorGroup* motors){
+    std::vector<int32_t> volts = motors->get_voltage_all();
+    if(volts.empty()) return 0;
+    double sum = 0;
+    for(int32_t v : volts) sum += v;
+    return (int)(sum / volts.size());
+}
+
 double odom_wheel::get_dist_delta(){
     if(odom_sensor != nullptr){ 
         get_dist();
@@ -111,8 +120,10 @@ void drivetrain::periodic(){
     if(TELEMETRY.isEnabled(Telemetry::Channel::Pose)){
         double vertDist = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr) ? vert_odom->current_val : 0.0;
         double horizDist = (horiz_odom != nullptr && horiz_odom->odom_sensor != nullptr) ? horiz_odom->current_val : 0.0;
-        TELEMETRY.send(Telemetry::Channel::Pose, std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}, \"vert\": {}, \"horiz\": {}, \"motorL\": {}, \"motorR\": {}}}\n",
-            pros::millis(), pos.x, pos.y, radToDeg(pos.theta), vertDist, horizDist, getLeftDistance(), getRightDistance()));
+        //voltL/voltR: average measured motor voltage per side (mV), so camera runs can check kV and 12V saturation
+        TELEMETRY.send(Telemetry::Channel::Pose, std::format("{{\"t\": {}, \"x\": {}, \"y\": {}, \"heading\": {}, \"vert\": {}, \"horiz\": {}, \"motorL\": {}, \"motorR\": {}, \"voltL\": {}, \"voltR\": {}}}\n",
+            pros::millis(), pos.x, pos.y, radToDeg(pos.theta), vertDist, horizDist, getLeftDistance(), getRightDistance(),
+            side_voltage(leftMotors), side_voltage(rightMotors)));
         }
 }
 
@@ -199,18 +210,21 @@ void drivetrain::update_velocities(){
     // Raw signed distance for this tick: prefer the vert dead wheel (already
     // signed forward-positive by construction, see odom_wheel's comment) so
     // this is one plain differentiation of one sensor - no chord math, no
-    // heading projection, no multi-tick smoothing window to amplify noise
-    // through. Falls back to averaged motor distance if there's no dead wheel.
+    // heading projection. Falls back to averaged motor distance if there's no dead wheel.
     double rawDist = (vert_odom != nullptr && vert_odom->odom_sensor != nullptr)
                           ? vert_odom->current_val
                           : getDriveDistance();
 
-    if(lastVelTickTime == 0){
+    // Differenced over the last 2 ticks (~20 ms), which always spans exactly one
+    // rotation sensor update. A 1-tick delta alternates 0 / 2v (see drivetrain.h).
+    if(olderVelTickTime == 0){
         lastVel = 0;
     }else{
-        double dt = (now - lastVelTickTime) / 1000.0;
-        if(dt > 0) lastVel = (rawDist - lastOdomDist) / dt;
+        double dt = (now - olderVelTickTime) / 1000.0;
+        if(dt > 0) lastVel = (rawDist - olderOdomDist) / dt;
     }
+    olderOdomDist = lastOdomDist;
+    olderVelTickTime = lastVelTickTime;
     lastOdomDist = rawDist;
     lastVelTickTime = now;
 

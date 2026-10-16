@@ -113,8 +113,9 @@ ClawTeleopCommand clawTeleop(&claw, &controller, pros::E_CONTROLLER_DIGITAL_L1, 
 #endif
 
 
-//vertOffset was 8.625, read ~1.4in long vs camera
-WallSensor back_wall_sensor(14, -2.75f, 7.2f,  WallSensor::Side::BACK);
+//vertOffset was 8.625, then 7.2. 7.2 was measured from the camera's point, which sat ~0.8in behind the odom
+//tracking point (tag profile fixed 10/16). Measured from the odom point it's 7.7-7.8
+WallSensor back_wall_sensor(14, -2.75f, 7.75f,  WallSensor::Side::BACK);
 
 //vertOffset=0.75  horizOffset=7.26
 WallSensor left_wall_sensor(9, 2.25f, 6.875f,  WallSensor::Side::LEFT);

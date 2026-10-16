@@ -1,6 +1,7 @@
 #include "Commands/Rotate.h"
 #include <vector>
 #include <algorithm>
+#include <cmath>
 #include <format>
 #include "Telemetry/telemetry.h"
 
@@ -65,7 +66,21 @@ void Rotate::execute(){
 
     //get all vars
     double heading = drive->gpos().theta;
+    double angle_turned = heading - initial_ang;
+
     double angError = angleDifference(target_ang, heading);
+
+    //re-aim from the live pose every tick: after a chained move(early exit) the robot keeps sliding while it turns,
+    //so a bearing worked out once in initialize() goes stale
+    if(target_supplier){
+        target_ang = degToRad(target_supplier());
+        angError = angleDifference(target_ang, heading);
+        //keep turning the same way: on a ~180 turn the wrapped error can jump from +179 to -179,
+        //so pick whichever wrap is closest to last tick's remaining error
+        double prev_error = drive->residual_angular_pid->get_target() - angle_turned;
+        angError += 2 * M_PI * std::round((prev_error - angError) / (2 * M_PI));
+        drive->residual_angular_pid->set_target(angle_turned + angError);
+    }
 
     if(early_exit_range > 0 && fabs(angError) <= early_exit_range){
         finished=true;
@@ -84,7 +99,6 @@ void Rotate::execute(){
         return;
     }
 
-    double angle_turned = heading - initial_ang;
     int mV = drive->residual_angular_pid->update(angle_turned);
 
     constexpr double kKickDeadbandRad = 0.0174533; // ~1 degree, stop kicking once this close, let PID alone settle

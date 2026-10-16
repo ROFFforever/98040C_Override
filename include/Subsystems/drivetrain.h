@@ -58,15 +58,16 @@ class drivetrain : public Subsystem{
 
         double getForwardDelta();
 
-        // Lateral velocity: raw single-tick delta of the primary drive-direction
-        // odom reading (or, with no dead wheel, averaged L/R motor distance),
+        // Lateral velocity: 2-tick delta of the primary drive-direction odom
+        // reading (or, with no dead wheel, averaged L/R motor distance),
         // divided by measured dt - one differentiation of a single sensor
-        // stream. Echo-style (subsystems/drivetrain.h): this used to be a
-        // hypot() of a 2-tick-lagged GLOBAL pose delta built from BOTH dead
-        // wheels + heading combined, which was a much longer/noisier chain to
-        // differentiate through.
+        // stream. 2 ticks, not 1: the rotation sensor only gives a new value
+        // every ~20 ms on the 10 ms loop, so a 1-tick delta reads 0 then 2v
+        // (seen in every camera run). older* = the reading 2 ticks back.
         double lastOdomDist = 0;
         uint32_t lastVelTickTime = 0;
+        double olderOdomDist = 0;
+        uint32_t olderVelTickTime = 0;
         double lastVel = 0;
 
         // Angular velocity: no history needed at all - see update_velocities(),

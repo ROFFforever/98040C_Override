@@ -182,7 +182,7 @@ WallLocalization::WallEstimate WallLocalization::estimate_from_wall(WallSensor::
     est.hasSensor = find_sensor(side) != nullptr;
     if(!est.hasSensor) return est;
 
-    double dist_from_wall = get_dist_from_wall(side, globalTheta);
+    double dist_from_wall = get_dist_from_wall(side, globalTheta, &est.raw);
     if(dist_from_wall == 9999 || dist_from_wall == PROS_ERR) return est;
 
     est.inRange = true;
@@ -223,6 +223,7 @@ void WallLocalization::apply_axis(float& val, float otherVal, bool isXAxis, Wall
     entry.now = now;
 
     WallEstimate est = estimate_from_wall(side, val, globalTheta);
+    entry.raw = est.raw;
     if(!est.inRange){
         entry.reject = est.hasSensor ? "sensor_range_error" : "no_sensor";
         log_axis(entry);
@@ -256,12 +257,12 @@ void WallLocalization::log_axis(const AxisLog& entry){
         "{{\"t\": {}, \"axis\": \"{}\", \"side\": \"{}\", \"accepted\": {}, \"reject\": \"{}\", "
         "\"distFromWall\": {:.2f}, \"poseVal\": {:.2f}, \"wallVal\": {:.2f}, \"errorIn\": {:.2f}, "
         "\"confidence\": {}, \"objectSize\": {}, \"gate\": {:.2f}, \"travel\": {:.2f}, "
-        "\"theta\": {:.1f}, \"angleDev\": 0, \"hitAlong\": {:.2f}}}\n",
+        "\"theta\": {:.1f}, \"angleDev\": 0, \"hitAlong\": {:.2f}, \"raw\": {:.3f}}}\n",
         entry.now, entry.axisName, sideToStr(entry.side), entry.accepted ? "true" : "false", entry.reject,
         entry.distFromWall, entry.poseVal, entry.wallVal, entry.errorIn,
         entry.sensor != nullptr ? entry.sensor->getConfidence() : 0,
         entry.sensor != nullptr ? entry.sensor->getObjectSize() : 0,
-        entry.gate, entry.travel, entry.globalTheta, entry.hitAlong));
+        entry.gate, entry.travel, entry.globalTheta, entry.hitAlong, entry.raw));
 }
 
 void WallLocalization::log_slant_reject(float globalTheta, float angleDeviation, int now){
@@ -281,8 +282,9 @@ bool WallLocalization::set_initial_pose(float headingDeg, Quadrant quadrant){
     WallSensor::Side side_x = (signX > 0 ? front_side - 1 : front_side + 1);
     WallSensor::Side side_y = (signY > 0 ? front_side : front_side - 2);
 
-    double dist_x = get_dist_from_wall(side_x, headingDeg);
-    double dist_y = get_dist_from_wall(side_y, headingDeg);
+    double raw_x = -1, raw_y = -1;
+    double dist_x = get_dist_from_wall(side_x, headingDeg, &raw_x);
+    double dist_y = get_dist_from_wall(side_y, headingDeg, &raw_y);
 
     WallSensor* sensor_x = find_sensor(side_x);
     WallSensor* sensor_y = find_sensor(side_y);
@@ -293,10 +295,10 @@ bool WallLocalization::set_initial_pose(float headingDeg, Quadrant quadrant){
     if(TELEMETRY.isEnabled(Telemetry::Channel::WallLocalization)){
         TELEMETRY.send(Telemetry::Channel::WallLocalization, std::format(
             "{{\"t\": {}, \"event\": \"set_initial_pose\", \"headingDeg\": {:.1f}, \"sideX\": \"{}\", \"sideY\": \"{}\", "
-            "\"distX\": {:.2f}, \"distY\": {:.2f}, \"xOk\": {}, \"yOk\": {}, "
+            "\"distX\": {:.2f}, \"distY\": {:.2f}, \"rawX\": {:.3f}, \"rawY\": {:.3f}, \"xOk\": {}, \"yOk\": {}, "
             "\"confX\": {}, \"sizeX\": {}, \"confY\": {}, \"sizeY\": {}}}\n",
             pros::millis(), headingDeg, sideToStr(side_x), sideToStr(side_y),
-            dist_x, dist_y, xOk ? "true" : "false", yOk ? "true" : "false",
+            dist_x, dist_y, raw_x, raw_y, xOk ? "true" : "false", yOk ? "true" : "false",
             sensor_x != nullptr ? sensor_x->getConfidence() : 0,
             sensor_x != nullptr ? sensor_x->getObjectSize() : 0,
             sensor_y != nullptr ? sensor_y->getConfidence() : 0,
@@ -345,13 +347,14 @@ WallSensor::Side WallLocalization::get_side_facing_front(float angle){
     }
 }
 
-double WallLocalization::get_dist_from_wall(WallSensor::Side side, float globalTheta){
+double WallLocalization::get_dist_from_wall(WallSensor::Side side, float globalTheta, double* rawOut){
     WallSensor* sensor = find_sensor(side);
     if(sensor == nullptr) return PROS_ERR; //nah there is no sensor available for that side
     float dist = sensor->getDist();
     if(dist >= 9999){ //ERROR VAL
         return 9999; //error val
     }
+    if(rawOut != nullptr) *rawOut = dist;
     float localTheta = std::fmod(std::fmod(globalTheta + 45.0f, 90.0f) + 90.0f, 90.0f) -
                        45.0f; // add 45 in the beginning to account for negative values
     localTheta = localTheta * (std::numbers::pi_v<float> / 180.0f);
