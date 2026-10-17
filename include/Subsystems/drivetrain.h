@@ -143,33 +143,38 @@ class drivetrain : public Subsystem{
     MotionParams get_lateral_params(Speed speed);
 
     //Factory method for rotating the chassis
+    //min_speed (out of 127, like max_speed) > 0 turns on motion chaining: output never tapers below it, exits when
+    //within early_exit_range OR on crossing the target, and the motors keep running into the next motion. 0 = stop at target.
     Rotate* rotate(double target_ang, double early_exit_range = 0,
-                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127, int min_speed = 0);
 
     //Same as above, but target_ang_supplier(degrees) is called at initialize() instead of now -
     //use this when the target depends on live pose(e.g. moveToPoint's heading-to-goal)
     Rotate* rotate(std::function<double()> target_ang_supplier, double early_exit_range = 0,
-                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127, int min_speed = 0);
 
     //Factory method for turning to face a point (x,y) WITHOUT driving there - target heading is
     //resolved lazily from live pose, same as moveToPoint's rotate step. backwards=true faces the
     //robot's back toward the point instead of its front.
     Rotate* rotate_to_point(double x, double y, double early_exit_range = 0, bool backwards = false,
-                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
+                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127, int min_speed = 0);
 
-    Swing* swing(double target_ang, DriveSide locked_side, bool reverse = false, double early_exit_range = 0,
-                    double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, int max_speed = 127);
+    //min_speed: same chaining behavior as rotate()
+    Swing* swing(double target_ang, DriveSide locked_side, bool reverse = false, int max_speed = 127, int min_speed = 0,
+                    double early_exit_range = 0, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
 
-    tank_motion_profile* Tank_motion_profile(double x, double y, double early_exit_range = 0, Speed speed = Speed::NORMAL, double max_time=Units::AUTO_TIME, double settle_range = Units::AUTO, bool backwards = false);
+    tank_motion_profile* Tank_motion_profile(double x, double y, double early_exit_range = 0, Speed speed = Speed::NORMAL, double max_time=Units::AUTO_TIME, double settle_range = Units::AUTO, bool backwards = false, double min_speed = 0);
 
     //factory method that turns to the point and then moves toward it. Both using a trapazoidal motion profile
     //Uses a sequence under the hood. backwards=true backs into the point instead of driving there nose-first.
     //turn_gate(deg): heading error under this is fixed while driving instead of turning first. 0 = always turn and settle, 15 = old behavior.
-    Sequence* moveToPoint(double x, double y, double early_exit_range = 0, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double turn_gate = Units::AUTO);
+    //min_speed(in/s) > 0 turns on motion chaining: the move plans to arrive at that speed and hands off on crossing the target
+    //(or early_exit_range before it) with the motors still running; its turn step also keeps spinning instead of tapering. 0 = stop at target.
+    Sequence* moveToPoint(double x, double y, double early_exit_range = 0, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double turn_gate = Units::AUTO, double min_speed = 0);
 
     //Drives straight forward/backward `distance` inches relative to current position - no rotate step.
     //Uses Speed::NORMAL's accel/final_vel shape but overrides cruise_vel with maxSpeed (inches/sec).
-    tank_motion_profile* moveForward(double distance, bool backwards, double maxSpeed, double early_exit_range = 0, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO);
+    tank_motion_profile* moveForward(double distance, bool backwards, double maxSpeed, double early_exit_range = 0, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double min_speed = 0);
     void set_speeds_lateral(Speed speed, MotionParams params);
 
 };

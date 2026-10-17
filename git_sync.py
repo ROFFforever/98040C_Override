@@ -18,6 +18,7 @@ Saving work:
   status                       show changed / staged / untracked files
   add <paths...>               stage files ("." stages everything)
   commit -m "msg" [-a] [--amend]   commit staged changes (-a stages tracked changes first)
+  commit-only <paths...> -m "msg"  commit just these files as they are now; other staged changes stay staged
   push "msg"                   stage everything, commit with msg, push (original behavior)
   publish [remote] [branch]    plain push of the current branch, no commit
   rm <paths...> [--cached]     delete files / stop tracking them
@@ -150,6 +151,57 @@ def cmd_commit(args):
         amend=amend,
     )
     print(f"Committed {sha.decode()[:7]}")
+
+
+def cmd_commit_only(args):
+    # Commit just these files (their current working-tree contents) on top of HEAD.
+    # Whatever else is staged stays staged and out of this commit - real git's
+    # `git commit -- <paths>`, which porcelain.commit can't do.
+    import os
+    import time
+    from dulwich.index import index_entry_from_stat
+    from dulwich.object_store import commit_tree_changes
+    from dulwich.objects import Blob, Commit
+    from dulwich.repo import Repo, get_user_identity
+
+    msg = option(args, "-m", "--message")
+    if msg is None or not args:
+        print('Usage: python git_sync.py commit-only <paths...> -m "message"')
+        sys.exit(1)
+    repo = Repo(REPO)
+    head = repo[repo.head()]
+    index = repo.open_index()
+    changes, new_entries = [], {}
+    for p in args:
+        rel = os.path.relpath(p, REPO).replace(os.sep, "/").encode()
+        if os.path.isfile(p):
+            st = os.stat(p)
+            blob = Blob.from_string(open(p, "rb").read())
+            repo.object_store.add_object(blob)
+            changes.append((rel, 0o100755 if st.st_mode & 0o111 and os.name != "nt" else 0o100644, blob.id))
+            new_entries[rel] = index_entry_from_stat(st, blob.id)
+        else:
+            changes.append((rel, None, None))  # deleted in the working tree -> delete in the commit
+            new_entries[rel] = None
+    c = Commit()
+    c.tree = commit_tree_changes(repo.object_store, repo[head.tree], changes)
+    c.parents = [head.id]
+    c.author = c.committer = get_user_identity(repo.get_config_stack())
+    c.author_time = c.commit_time = int(time.time())
+    c.author_timezone = c.commit_timezone = -(time.altzone if time.localtime().tm_isdst else time.timezone)
+    c.encoding = b"UTF-8"
+    c.message = msg.encode("utf-8")
+    repo.object_store.add_object(c)
+    repo.refs[b"refs/heads/" + current_branch().encode()] = c.id
+    # keep the index in step so these files don't show as staged-reverted afterwards
+    for rel, entry in new_entries.items():
+        if entry is None:
+            if rel in index:
+                del index[rel]
+        else:
+            index[rel] = entry
+    index.write()
+    print(f"Committed {c.id.decode()[:7]} ({len(changes)} file(s)); other staged changes left as they were")
 
 
 def cmd_push(args):
@@ -432,6 +484,7 @@ COMMANDS = {
     "status": cmd_status,
     "add": cmd_add,
     "commit": cmd_commit,
+    "commit-only": cmd_commit_only,
     "push": cmd_push,
     "publish": cmd_publish,
     "pull": cmd_pull,

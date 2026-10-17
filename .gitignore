@@ -15,5 +15,11 @@ temp.log
 temp.errors
 *.ini
 .d/
+# Generated cold library (rebuilt by `pros make refresh-cold`)
+firmware/Override98040C.a
+# Logs / telemetry dumps
+log.txt
+scripts/telemetry/input.txt
 # Python
 __pycache__/
+*.pyc

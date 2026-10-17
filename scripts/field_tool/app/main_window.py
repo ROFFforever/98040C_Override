@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDockWidget, QD
 from app import field_config as cfg
 from app.field_view import FieldView
 from app.keybinds import BY_ID, KeybindDialog, Keybinds
-from app.planner import codegen
 from app.planner.plan import identifier
 from app.planner.plan_overlay import PlanOverlay
 from app.planner.plan_panel import PlanPanel
@@ -100,6 +99,12 @@ class MainWindow(QMainWindow):
         add("fit", self.view.fit_field, text="Fit")
         add("grid", self.view.set_grid_visible, True, True, "Grid")
         add("axes", self.view.set_axes_visible, True, True, "Axes")
+        add("zoom_in", lambda: self.view.zoom_by(1.25))
+        add("zoom_out", lambda: self.view.zoom_by(0.8))
+        add("pan_left", lambda: self.view.pan_by(-80, 0))
+        add("pan_right", lambda: self.view.pan_by(80, 0))
+        add("pan_up", lambda: self.view.pan_by(0, -80))
+        add("pan_down", lambda: self.view.pan_by(0, 80))
         add("robot_trace", lambda on: ov.set_visible("robot", on), True, True, "Robot odom", _color_icon(cfg.ROBOT_COLOR))
         add("camera_trace", lambda on: ov.set_visible("camera", on), True, True, "Camera tag", _color_icon(cfg.CAMERA_COLOR))
         add("ghost", ov.set_ghosts_visible, True, True, "Outline")
@@ -248,27 +253,22 @@ class MainWindow(QMainWindow):
 
     def _delete_plan(self):
         name = self.planner.plan.name
-        if QMessageBox.question(self, "Delete plan", f"Delete the plan {name}?\n\n(Exported code in "
-                                f"src/GeneratedAutons is left alone.)") == QMessageBox.Yes:
+        if QMessageBox.question(self, "Delete plan", f"Delete the plan {name}?\n\nThis deletes src/GeneratedAutons/"
+                                f"{name}.cpp and include/GeneratedAutons/{name}.h - the plan IS that code.") \
+                == QMessageBox.Yes:
             self.planner.delete_plan()
 
     def _export_plan(self):
         plan = self.planner.plan
-        self.planner.save()
-        paths = codegen.export_paths(plan)
-        edited = [p for p in paths if codegen.hand_edited(p)]
-        if edited and QMessageBox.question(
-                self, "Overwrite?", "Changed since the last export (or not made by this tool):\n\n"
-                + "\n".join(f"{p.parent.parent.name}/{p.parent.name}/{p.name}" for p in edited)
-                + "\n\nOverwrite?") != QMessageBox.Yes:
-            return
-        codegen.write(plan)
+        self.planner.save()  #the plan autosaves into the .cpp/.h; this just flushes it and shows the call to add
         fn = identifier(plan.name)
-        args = "&chassis" + (", ..." if plan.extra_params.strip() else "")
+        args = "&chassis" + (", &wallLocalization" if plan.set_pose and plan.wall_pose else "") \
+            + (", ..." if plan.extra_params.strip() else "")
         call = f"{fn}({args});" if plan.style == "lines" else f"await({fn}({args}));"
         QMessageBox.information(
-            self, "Exported",
-            f"Wrote include/GeneratedAutons/{fn}.h and src/GeneratedAutons/{fn}.cpp\n\n"
+            self, "Saved",
+            f"The plan is include/GeneratedAutons/{fn}.h and src/GeneratedAutons/{fn}.cpp - it autosaves, and "
+            "edits to the .cpp show up here within a second.\n\n"
             f"In main.cpp:\n    #include \"GeneratedAutons/{fn}.h\"\nand in autonomous():\n    {call}\n\n"
             "GeneratedAutons isn't a cold folder, so a normal build picks it up.")
 
@@ -284,7 +284,14 @@ class MainWindow(QMainWindow):
         self.addToolBar(bar)
 
         bar.addWidget(QLabel(" Run: "))
-        self.run_combo = QComboBox()
+        window = self
+
+        class _RunCombo(QComboBox):
+            def showPopup(self):  #rescan every time the list opens, so new runs show up without a restart
+                window._refresh_run_list()
+                super().showPopup()
+
+        self.run_combo = _RunCombo()
         self.run_combo.setMinimumWidth(200)
         self.run_combo.setFocusPolicy(Qt.NoFocus)  #keeps Space / arrows going to the shortcuts
         self.run_combo.setToolTip(f"Run folders in {cfg.RUNS_DIR}")

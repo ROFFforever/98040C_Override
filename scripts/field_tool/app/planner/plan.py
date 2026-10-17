@@ -1,11 +1,10 @@
-"""The auton plan: start pose + an ordered list of steps, saved as JSON in scripts/field_tool/autons/.
-The JSON is the source of truth - the C++ is generated from it (codegen.py), never parsed back."""
+"""The auton plan: start pose + an ordered list of steps. It lives in the exported C++ (store.py reads/writes
+it, parse.py reads the code back, codegen.py writes it). to_dict/from_dict are for undo and for opening the
+old scripts/field_tool/autons/*.json plans."""
 import copy
-import json
 import re
 from dataclasses import dataclass, field
 
-from app import field_config as cfg
 from app.planner.steps import BY_ID, default_params
 
 STYLES = ("lines", "sequence")  #lines: await()/->schedule() statements, sequence: return new Sequence({...})
@@ -39,6 +38,7 @@ class Plan:
     start_y: float = 0.0
     start_heading: float = 0.0
     set_pose: bool = True        #emit chassis->setPose(start) at the top
+    wall_pose: bool = False      #seed the start pose from the wall sensors (setPose(start) becomes the fallback)
     extra_params: str = ""       #e.g. "Lift* lift, piston* claw" for custom code steps
     extra_includes: str = ""     #comma separated headers for the generated .h
     time_limit: float = 15.0     #15 = match auton, 60 = skills
@@ -79,7 +79,7 @@ class Plan:
                 items.append(step(it))
         return {"version": 1, "name": self.name, "style": self.style,
                 "start": {"x": self.start_x, "y": self.start_y, "heading": self.start_heading},
-                "set_pose": self.set_pose, "extra_params": self.extra_params,
+                "set_pose": self.set_pose, "wall_pose": self.wall_pose, "extra_params": self.extra_params,
                 "extra_includes": self.extra_includes, "time_limit": self.time_limit, "items": items}
 
     @classmethod
@@ -102,7 +102,7 @@ class Plan:
         return cls(name=d.get("name", "new_auton"), style=d.get("style", "lines") if d.get("style") in STYLES
                    else "lines", start_x=start.get("x", 0.0), start_y=start.get("y", 0.0),
                    start_heading=start.get("heading", 0.0), set_pose=d.get("set_pose", True),
-                   extra_params=d.get("extra_params", ""), extra_includes=d.get("extra_includes", ""),
+                   wall_pose=d.get("wall_pose", False), extra_params=d.get("extra_params", ""), extra_includes=d.get("extra_includes", ""),
                    time_limit=d.get("time_limit", 15.0), items=items)
 
     def copy(self):
@@ -115,20 +115,3 @@ def identifier(name):
     return "_" + name if name[0].isdigit() else name
 
 
-def plan_path(name):
-    return cfg.PLANS_DIR / f"{identifier(name)}.json"
-
-
-def list_plans():
-    if not cfg.PLANS_DIR.exists():
-        return []
-    return sorted(p.stem for p in cfg.PLANS_DIR.glob("*.json"))
-
-
-def load_plan(name):
-    return Plan.from_dict(json.loads(plan_path(name).read_text()))
-
-
-def save_plan(plan):
-    cfg.PLANS_DIR.mkdir(parents=True, exist_ok=True)
-    plan_path(plan.name).write_text(json.dumps(plan.to_dict(), indent=2) + "\n")

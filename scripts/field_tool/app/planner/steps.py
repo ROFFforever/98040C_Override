@@ -11,8 +11,8 @@ from typing import Callable
 from app.planner.motion import SETTLE_S, Motion, wrap
 
 #drivetrain.cpp: moveToPoint skips its turn when already within this, and its turn exits early at this
-MOVE_TO_POINT_SKIP_TURN_DEG = 15.0
-MOVE_TO_POINT_TURN_EARLY_EXIT_DEG = 5.0
+MOVE_TO_POINT_SKIP_TURN_DEG = 30.0      #the turn_gate default (drivetrain.cpp move_to_point_turn_gate)
+MOVE_TO_POINT_TURN_EXIT_RATIO = 1.0 / 3.0   #the turn exits early at gate * this
 TURN_SETTLE_DEG = 5.0  #Rotate/Swing default settle range
 
 
@@ -66,6 +66,10 @@ MAX_TIME = Param("max_time", "Max time", "auto", None, "s", 0, 30, 0.1, cpp_auto
 SETTLE_IN = Param("settle", "Settle range", "auto", None, "in", 0, 24, 0.25, cpp_auto="Units::AUTO")
 SETTLE_DEG = Param("settle", "Settle range", "auto", None, "°", 0, 45, 0.5, decimals=1, cpp_auto="Units::AUTO")
 MAX_SPEED = Param("max_speed", "Max speed", "int", 127, "/127", 1, 127, 1, decimals=0)
+#motion chaining: 0 = taper and stop at the target. Above 0 the motion never slows below this and hands off while moving
+MIN_SPEED_TURN = Param("min_speed", "Min speed (chain)", "int", 0, "/127", 0, 127, 1, decimals=0)
+MIN_SPEED_DRIVE = Param("min_speed", "Min speed (chain)", "float", 0.0, "in/s", 0, 100, 1, decimals=1)
+TURN_GATE = Param("turn_gate", "Turn gate", "auto", None, "°", 0, 180, 1, decimals=1, cpp_auto="Units::AUTO")
 SPEED = Param("speed", "Speed", "choice", "NORMAL", choices=("SLOW", "NORMAL", "FAST"), cpp_enum="Speed")
 BACKWARDS = Param("backwards", "Backwards", "bool", False)
 X = Param("x", "x", "float", 0.0, "in", -72, 72, 0.5, optional=False)
@@ -89,13 +93,17 @@ def _check_time(m, p, needed, auto_cap=None):
 def _turn(m, delta, p, profile, factor=1.0, pivot=None):
     """Rotate/Swing: turn by delta degrees (sign already chosen), honoring early exit + settle + timeouts."""
     early = p.get("early_exit", 0.0)
+    chained = p.get("min_speed", 0) > 0  #min_speed: never tapers off, hands off on crossing the target
+    hands_off = early > 0 or chained
     eff = max(0.0, abs(delta) - early) * (1 if delta >= 0 else -1)
-    needed = abs(eff) / _turn_rate(profile, p, factor) + (0 if early > 0 else SETTLE_S)
+    needed = abs(eff) / _turn_rate(profile, p, factor) + (0 if hands_off else SETTLE_S)
     #Rotate.cpp / Swing.cpp: auto max_time = 0.5 + 0.4 s per radian
     _check_time(m, p, needed, 0.5 + 0.4 * math.radians(abs(delta)))
-    m.turn(eff, needed - (0 if early > 0 else SETTLE_S), pivot)
-    if early <= 0:
+    m.turn(eff, needed - (0 if hands_off else SETTLE_S), pivot)
+    if not hands_off:
         m.hold(SETTLE_S)
+    elif chained:
+        m.notes.append(f"chained: keeps turning at ≥{p['min_speed']}/127 into the next move")
     else:
         m.notes.append(f"hands off {num(early)}° early, still turning")
 
@@ -109,14 +117,18 @@ def _drive_to(m, x, y, backwards, vel, accel, p):
         return
     face = math.degrees(math.atan2(y - y0, x - x0)) + (180 if backwards else 0)
     early = min(p.get("early_exit", 0.0), dist)
+    min_speed = p.get("min_speed", 0.0)  #in/s: the profile plans to arrive at this speed and hands off moving
     if early > 0:  #exits once the remaining distance is under early_exit, motors still going
         f = (dist - early) / dist
         x, y = x0 + (x - x0) * f, y0 + (y - y0) * f
         m.notes.append(f"hands off {num(early)} in early, still moving")
-    t = m.line(x, y, face, vel, accel)
-    if early <= 0:
+    if min_speed > 0:
+        m.notes.append(f"chained: arrives at {num(min_speed)} in/s and hands off without stopping")
+    t = m.line(x, y, face, vel, accel, min_speed)
+    hands_off = early > 0 or min_speed > 0
+    if not hands_off:
         m.hold(SETTLE_S)
-    _check_time(m, p, t + (0 if early > 0 else SETTLE_S))
+    _check_time(m, p, t + (0 if hands_off else SETTLE_S))
 
 
 def _face_angle(pose, x, y, backwards):
@@ -127,10 +139,11 @@ def _face_angle(pose, x, y, backwards):
 
 def _sim_move_to_point(pose, p, profile):
     m = Motion(pose)
-    #drivetrain::moveToPoint = rotate_to_point (skipped under 15°, exits 5° early) then the profiled drive
+    #drivetrain::moveToPoint = rotate_to_point (skipped under the turn gate, exits gate/3 early) then the profiled drive
+    gate = MOVE_TO_POINT_SKIP_TURN_DEG if p["turn_gate"] is None else p["turn_gate"]
     turn = wrap(_face_angle(pose, p["x"], p["y"], p["backwards"]) - pose[2])
-    if abs(turn) > MOVE_TO_POINT_SKIP_TURN_DEG and math.hypot(p["x"] - pose[0], p["y"] - pose[1]) > 0.01:
-        eff = turn - math.copysign(MOVE_TO_POINT_TURN_EARLY_EXIT_DEG, turn)
+    if abs(turn) > gate and math.hypot(p["x"] - pose[0], p["y"] - pose[1]) > 0.01:
+        eff = turn - math.copysign(min(gate * MOVE_TO_POINT_TURN_EXIT_RATIO, abs(turn)), turn)
         m.turn(eff, abs(eff) / profile.turn_rate_dps)
     vel, accel = profile.lateral(p["speed"])
     _drive_to(m, p["x"], p["y"], p["backwards"], vel, accel, p)
@@ -215,17 +228,19 @@ def _flags(p):
         out.append(p["speed"].lower())
     if p.get("early_exit"):
         out.append(f"exit {num(p['early_exit'])}")
+    if p.get("min_speed"):
+        out.append(f"chain {num(p['min_speed'])}")
     return ("  " + ", ".join(out)) if out else ""
 
 
 STEP_TYPES = [
     StepType("move_to_point", "Move to point", "chassis->moveToPoint",
-             (X, Y, _early_exit("in"), BACKWARDS, SPEED, MAX_TIME, SETTLE_IN),
+             (X, Y, _early_exit("in"), BACKWARDS, SPEED, MAX_TIME, SETTLE_IN, TURN_GATE, MIN_SPEED_DRIVE),
              _sim_move_to_point,
              lambda p: f"moveToPoint ({num(p['x'])}, {num(p['y'])})" + _flags(p),
              handle="point", repeat_place=True),
     StepType("drive_to_point", "Drive to point (no turn)", "chassis->Tank_motion_profile",
-             (X, Y, _early_exit("in"), SPEED, MAX_TIME, SETTLE_IN, BACKWARDS),
+             (X, Y, _early_exit("in"), SPEED, MAX_TIME, SETTLE_IN, BACKWARDS, MIN_SPEED_DRIVE),
              _sim_drive_to_point,
              lambda p: f"driveTo ({num(p['x'])}, {num(p['y'])})" + _flags(p),
              includes=("Commands/tank_motion_profile.hpp",), handle="point", repeat_place=True),
@@ -233,17 +248,17 @@ STEP_TYPES = [
              (Param("distance", "Distance", "float", 24.0, "in", 0, 200, 0.5, optional=False),
               Param("backwards", "Backwards", "bool", False, optional=False),
               Param("max_speed_in", "Max speed", "float", 60.0, "in/s", 1, 200, 1, decimals=1, optional=False),
-              _early_exit("in"), MAX_TIME, SETTLE_IN),
+              _early_exit("in"), MAX_TIME, SETTLE_IN, MIN_SPEED_DRIVE),
              _sim_move_forward,
              lambda p: f"moveForward {num(p['distance'])} in @ {num(p['max_speed_in'])}" + _flags(p),
              includes=("Commands/tank_motion_profile.hpp",), handle="distance"),
     StepType("rotate", "Rotate to heading", "chassis->rotate",
-             (TARGET_DEG, _early_exit("°"), MAX_TIME, SETTLE_DEG, MAX_SPEED),
+             (TARGET_DEG, _early_exit("°"), MAX_TIME, SETTLE_DEG, MAX_SPEED, MIN_SPEED_TURN),
              _sim_rotate,
              lambda p: f"rotate {num(p['target'])}°" + _flags(p),
              includes=("Commands/Rotate.h",), handle="angle"),
     StepType("rotate_to_point", "Rotate to face point", "chassis->rotate_to_point",
-             (X, Y, _early_exit("°"), BACKWARDS, MAX_TIME, SETTLE_DEG, MAX_SPEED),
+             (X, Y, _early_exit("°"), BACKWARDS, MAX_TIME, SETTLE_DEG, MAX_SPEED, MIN_SPEED_TURN),
              _sim_rotate_to_point,
              lambda p: f"face ({num(p['x'])}, {num(p['y'])})" + _flags(p),
              includes=("Commands/Rotate.h",), handle="point"),
@@ -252,7 +267,7 @@ STEP_TYPES = [
               Param("side", "Locked side", "choice", "LEFT", choices=("LEFT", "RIGHT"), cpp_enum="DriveSide",
                     optional=False),
               Param("reverse", "Reverse", "bool", False),
-              _early_exit("°"), MAX_TIME, SETTLE_DEG, MAX_SPEED),
+              MAX_SPEED, MIN_SPEED_TURN, _early_exit("°"), MAX_TIME, SETTLE_DEG),
              _sim_swing,
              lambda p: f"swing {num(p['target'])}° lock {p['side'].lower()}" + (", rev" if p["reverse"] else "")
                        + _flags(p),

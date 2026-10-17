@@ -6,15 +6,17 @@ import time
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from app import settings
-from app.planner import codegen
+from app.planner import codegen, parse, store
 from app.planner.motion import wrap
-from app.planner.plan import Group, Plan, Step, identifier, list_plans, load_plan, plan_path, save_plan
+from app.planner.parse import ParseError
+from app.planner.plan import Group, Plan, Step, identifier
 from app.planner.simulate import can_async, simulate_plan
 from app.planner.steps import BY_ID, default_params
 
 STATE_FILE = "planner.json"  #remembers the last open plan
 UNDO_LIMIT = 200
 COALESCE_S = 1.0             #edits to the same field within this long are one undo step
+POLL_MS = 1000               #how often the open plan's .cpp is checked for edits made outside the tool
 POINT_STEP_TYPES = ("move_to_point", "drive_to_point", "rotate_to_point")
 
 
@@ -42,6 +44,15 @@ class Planner(QObject):
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(400)
         self._save_timer.timeout.connect(self.save)
+        #The plan is the .cpp on disk: _disk_text is what we last wrote/read, so a different file means it was
+        #edited outside the tool (VS Code on the laptop at a match...) and the file wins.
+        self._disk_text = None
+        self._dirty = False     #in-tool edits not written yet
+        self.notice = ""        #problem reading/writing the .cpp, shown in the panel
+        self._poll = QTimer(self)
+        self._poll.setInterval(POLL_MS)
+        self._poll.timeout.connect(self._check_external)
+        self._poll.start()
 
     # ---- plans
 
@@ -50,43 +61,56 @@ class Planner(QObject):
         if self.plan is not None:
             return
         last = settings.load(STATE_FILE, {}).get("last")
-        plans = list_plans()
-        if last in plans:
-            self.open_plan(last)
-        elif plans:
-            self.open_plan(plans[0])
-        else:
+        plans = store.list_plans()
+        order = ([last] if last in plans else []) + [p for p in plans if p != last]
+        if not any(self.open_plan(name) for name in order):
             self.new_plan()
 
     def open_plan(self, name):
+        """-> True if it opened (a .cpp the parser can't read stays closed and sets self.notice)."""
         self.save()
-        self._set_plan(load_plan(name))
+        try:
+            plan, warnings, text = store.load_plan(name)
+        except (ParseError, ValueError, OSError) as e:
+            self.notice = f"Couldn't open {name}: {e}"
+            self.changed.emit()
+            return False
+        legacy = text is None
+        self._disk_text = store.read(store.cpp_path(name)) if legacy else text
+        self.notice = "\n".join(warnings)
+        self._set_plan(plan)
+        if legacy:  #first open of an old json plan: write it out as the .cpp
+            self._dirty = True
+            self.save()
+        return True
 
     def new_plan(self, base="auton"):
         self.save()
-        taken = set(list_plans())
+        taken = store.taken_names()
         n = 1
         while f"{base}_{n}" in taken:
             n += 1
+        self._disk_text, self.notice = None, ""
         self._set_plan(Plan(name=f"{base}_{n}"))
+        self._dirty = True
         self.save()
 
     def duplicate_plan(self):
         self.save()
         copy = self.plan.copy()
-        taken = set(list_plans())
+        taken = store.taken_names()
         name, n = f"{copy.name}_copy", 2
         while name in taken:
             name, n = f"{copy.name}_copy{n}", n + 1
         copy.name = name
+        self._disk_text, self.notice = None, ""
         self._set_plan(copy)
+        self._dirty = True
         self.save()
 
     def delete_plan(self):
-        path = plan_path(self.plan.name)
-        if path.exists():
-            path.unlink()
-        self.plan = None
+        store.delete_plan(self.plan.name)
+        self.plan, self._dirty, self._disk_text = None, False, None
         self.ensure_plan()
 
     def rename(self, new_name):
@@ -94,14 +118,15 @@ class Planner(QObject):
         new_id = identifier(new_name)
         if new_id == self.plan.name:
             return None
-        if new_id in list_plans():
-            return f"There's already a plan called {new_id}."
-        old = plan_path(self.plan.name)
+        if new_id in store.taken_names():
+            return f"There's already a file called {new_id}.cpp."
+        old = self.plan.name
         self.checkpoint()
         self.plan.name = new_id
+        self._disk_text = None
+        self._dirty = True
         self.save()
-        if old.exists():
-            old.unlink()
+        store.delete_plan(old)
         self._remember()
         self.plan_switched.emit()
         self._commit(save=False)
@@ -122,9 +147,49 @@ class Planner(QObject):
         settings.save(STATE_FILE, {"last": self.plan.name})
 
     def save(self):
+        """Writes the plan to its .cpp/.h - unless the .cpp was changed outside the tool, then that wins."""
         self._save_timer.stop()
-        if self.plan is not None:
-            save_plan(self.plan)
+        if self.plan is None or not self._dirty:
+            return
+        on_disk = store.read(store.cpp_path(self.plan.name))
+        if on_disk is not None and on_disk != self._disk_text:
+            self._dirty = False
+            self._reload(on_disk)
+            return
+        try:
+            self._disk_text = store.save_plan(self.plan)
+            self._dirty = False
+            if self.notice.startswith("Couldn't save"):
+                self.notice = ""
+        except OSError as e:
+            self.notice = f"Couldn't save: {e}"
+            self.changed.emit()
+
+    def _check_external(self):
+        if self.plan is None or self._dirty:
+            return
+        on_disk = store.read(store.cpp_path(self.plan.name))
+        if on_disk is not None and on_disk != self._disk_text:
+            self._reload(on_disk)
+
+    def _reload(self, text):
+        """Re-read the plan from edited .cpp text. Ctrl+Z goes back to what the tool had."""
+        try:
+            plan, warnings = parse.parse_plan(self.plan.name, text, store.read(store.h_path(self.plan.name)) or "")
+        except ParseError as e:  #probably mid-edit: keep the plan, try again when the file changes
+            notice = f"Can't read {self.plan.name}.cpp yet: {e}"
+            if notice != self.notice:
+                self.notice = notice
+                self.changed.emit()
+            return
+        self.checkpoint()
+        self.plan = plan
+        self._disk_text = text
+        self.notice = "\n".join(warnings)
+        self.selected = self.selected if self.plan.get(self.selected) is not None else None
+        self._last_key = None
+        self.plan_switched.emit()
+        self._commit(save=False)
 
     def set_profile(self, profile):
         self.profile = profile
@@ -159,9 +224,8 @@ class Planner(QObject):
         old_name = self.plan.name
         self.plan = Plan.from_dict(data)
         if self.plan.name != old_name:  #undoing a rename: move the file back too
-            p = plan_path(old_name)
-            if p.exists():
-                p.unlink()
+            store.delete_plan(old_name)
+            self._disk_text = None
             self._remember()
         self.selected = sel if self.plan.get(sel) is not None else None
         self._last_key = None
@@ -172,6 +236,7 @@ class Planner(QObject):
         self.sim = simulate_plan(self.plan, self.profile)
         self.code = codegen.generate(self.plan)
         if save:
+            self._dirty = True
             self._save_timer.start()
         self.changed.emit()
 
@@ -425,7 +490,9 @@ class Planner(QObject):
             self.plan.start_y = snap(y, 0.1, 1.0, use_coarse)
         elif kind == "start_heading":
             ang = math.degrees(math.atan2(y - self.plan.start_y, x - self.plan.start_x)) % 360
-            self.plan.start_heading = snap(ang, 1.0, 15.0, use_coarse) % 360
+            ang = snap(ang, 1.0, 15.0, use_coarse) % 360
+            near = round(ang / 90) * 90  #magnet to 0/90/180/270 so exact cardinals are easy to hit
+            self.plan.start_heading = near % 360 if abs(ang - near) <= 4 else ang
         else:
             step = self.plan.get(key[1])
             sim = self.sim.by_path.get(key[1])

@@ -9,20 +9,22 @@ const double settle_range_config = degToRad(5); //should be a good balance of sp
 const double auto_time_base = 0.5;
 const double auto_time_per_rad = 0.4;
 
-Rotate::Rotate(double target_ang, drivetrain* drive, double early_exit_range, double max_time, double settle_range, int max_speed){
+Rotate::Rotate(double target_ang, drivetrain* drive, double early_exit_range, double max_time, double settle_range, int max_speed, int min_speed){
     this->target_ang=degToRad(target_ang);
     this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
+    this->min_mV=std::min((int)(min_speed * 12000.0 / 127), max_mV);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
     this->max_time = auto_time ? 1.0 : max_time; //placeholder, resolved for real in initialize() once the profile exists
     this->settle_range = (settle_range == Units::AUTO ? settle_range_config : degToRad(settle_range));
 };
 
-Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, double early_exit_range, double max_time, double settle_range, int max_speed){
+Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, double early_exit_range, double max_time, double settle_range, int max_speed, int min_speed){
     this->target_supplier = target_supplier;
     this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
+    this->min_mV=std::min((int)(min_speed * 12000.0 / 127), max_mV);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
     this->max_time = auto_time ? 1.0 : max_time; //placeholder, resolved for real in initialize() once the profile exists
@@ -33,12 +35,14 @@ void Rotate::initialize(){
     //reset so this command can be scheduled/run more than once
     finished = false;
     exit_consecutive_counter = 0;
+    chained_exit = false;
 
     //resolve a live target now(using current pose) instead of whatever was true when this Rotate was constructed
     if(target_supplier) target_ang = degToRad(target_supplier());
 
     initial_ang=drive->gpos().theta;
     ang_error = angleDifference(target_ang,initial_ang);
+    initial_sign = (int)sgn(ang_error);
     if(skip_range > 0 && fabs(ang_error) <= skip_range) finished = true;
     drive->residual_angular_pid->reset(ang_error);
     drive->residual_angular_pid->set_target(ang_error);
@@ -49,9 +53,9 @@ void Rotate::initialize(){
 
     start_time=pros::millis();
 
-    TELEMETRY.send(Telemetry::Channel::Debug, std::format(
-        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"rotate\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}, \"skip_range\": {:.2f}, \"skipped\": {}}}\n",
-        start_time, radToDeg(target_ang), radToDeg(initial_ang), radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV, radToDeg(skip_range), finished));
+    TELEMETRY.send(Telemetry::Channel::Debug, std::format( //send exact command settings
+        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"rotate\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}, \"min_mV\": {}, \"skip_range\": {:.2f}, \"skipped\": {}}}\n",
+        start_time, radToDeg(target_ang), radToDeg(initial_ang), radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV, min_mV, radToDeg(skip_range), finished));
 }
 
 void Rotate::execute(){
@@ -84,6 +88,14 @@ void Rotate::execute(){
 
     if(early_exit_range > 0 && fabs(angError) <= early_exit_range){
         finished=true;
+        chained_exit = min_mV > 0;
+        return;
+    }
+
+    //chaining: hand off as soon as we pass the target, like lemlib's turnTo with minSpeed
+    if(min_mV > 0 && initial_sign != 0 && (int)sgn(angError) == -initial_sign){
+        finished=true;
+        chained_exit = true;
         return;
     }
 
@@ -106,12 +118,16 @@ void Rotate::execute(){
     bool nearTarget = fabs(angError) < kKickDeadbandRad;
     int kick = nearTarget ? 0 : (int)(drive->angular_kS * kKickScale) * (int)sgn(angError);
 
-    int out = std::clamp(mV + kick, -max_mV, max_mV);
+    int out = mV + kick;
+    //min speed floor: never let the PID taper below min_mV(keeps pointing at the target)
+    if(min_mV > 0 && abs(out) < min_mV) out = min_mV * (int)sgn(angError);
+    out = std::clamp(out, -max_mV, max_mV);
     drive->setVoltageLeft(-out);
     drive->setVoltageRight(out);
 }
 
 void Rotate::end(bool interupted){
+    if(chained_exit && !interupted) return; //the next motion takes over at speed, don't zero the motors in between
     drive->set(0);
 }
 

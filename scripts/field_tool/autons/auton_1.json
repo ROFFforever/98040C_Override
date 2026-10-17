@@ -3,11 +3,12 @@
   "name": "auton_1",
   "style": "lines",
   "start": {
-    "x": -4.9,
-    "y": -60.1,
+    "x": -9.2,
+    "y": -62.0,
     "heading": 270.0
   },
   "set_pose": true,
+  "wall_pose": true,
   "extra_params": "",
   "extra_includes": "",
   "time_limit": 15.0,
@@ -15,10 +16,38 @@
     {
       "type": "swing",
       "params": {
-        "target": 336.0,
+        "target": 321.0,
         "side": "RIGHT",
         "reverse": true,
-        "early_exit": 10.0,
+        "early_exit": 5.0,
+        "max_time": null,
+        "settle": 0.5,
+        "max_speed": 127
+      },
+      "async": false,
+      "note": ""
+    },
+    {
+      "type": "move_to_point",
+      "params": {
+        "x": -16.9,
+        "y": -53.6,
+        "early_exit": 0.0,
+        "backwards": true,
+        "speed": "NORMAL",
+        "max_time": null,
+        "settle": null
+      },
+      "async": false,
+      "note": ""
+    },
+    {
+      "type": "swing",
+      "params": {
+        "target": 103.0,
+        "side": "LEFT",
+        "reverse": false,
+        "early_exit": 0.0,
         "max_time": null,
         "settle": null,
         "max_speed": 127
@@ -29,10 +58,10 @@
     {
       "type": "move_to_point",
       "params": {
-        "x": -17.4,
-        "y": -50.6,
+        "x": -20.1,
+        "y": -27.8,
         "early_exit": 0.0,
-        "backwards": true,
+        "backwards": false,
         "speed": "NORMAL",
         "max_time": null,
         "settle": null

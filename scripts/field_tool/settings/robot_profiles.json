@@ -1,12 +1,20 @@
 {
-  "active": "18 x 18 (max size)",
+  "active": "Test Bot",
   "profiles": [
     {
-      "name": "18 x 18 (max size)",
-      "length_in": 18.0,
-      "width_in": 18.0,
+      "name": "Test Bot",
+      "length_in": 15.0,
+      "width_in": 13.5,
       "center_forward_in": 0.0,
-      "center_left_in": 0.0
+      "center_left_in": 0.0,
+      "track_width_in": 10.0,
+      "slow_vel": 40.0,
+      "slow_accel": 65.0,
+      "normal_vel": 60.0,
+      "normal_accel": 75.0,
+      "fast_vel": 80.0,
+      "fast_accel": 85.0,
+      "turn_rate_dps": 300.0
     }
   ]
 }

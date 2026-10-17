@@ -16,10 +16,12 @@ static int fwd_with_turn_room(double fwd, int turn_mv) {
   return (int)std::clamp(fwd, -room, room);
 }
 
-tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards) {
+tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards, double min_speed) {
   this->x = x;
   this->y = y;
   this->constraints = constraints;
+  this->min_speed = min_speed;
+  if (min_speed > 0) this->constraints.final_vel = min_speed; //plan to arrive moving, not stopped
   this->early_exit_range = early_exit_range;
   this->drive = drive;
   this->max_time = max_time;
@@ -27,9 +29,11 @@ tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, 
   this->backwards = backwards;
 }
 
-tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards) {
+tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards, double min_speed) {
   this->target_supplier = target_supplier;
   this->constraints = constraints;
+  this->min_speed = min_speed;
+  if (min_speed > 0) this->constraints.final_vel = min_speed; //plan to arrive moving, not stopped
   this->early_exit_range = early_exit_range;
   this->drive = drive;
   this->max_time = max_time;
@@ -40,6 +44,7 @@ tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()
 void tank_motion_profile::initialize() {
   //ensure that if command is reused, it doesn't accidentally immediately exit
   finished = false;
+  chained_exit = false;
   drive->residual_angular_pid->reset();
 
   // get start time
@@ -86,8 +91,8 @@ void tank_motion_profile::initialize() {
   max_time = max_time == Units::AUTO_TIME ? motion->totalTime() + 1.5 : max_time;
 
   TELEMETRY.send(Telemetry::Channel::Debug, std::format(
-    "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"profile\", \"x\": {:.3f}, \"y\": {:.3f}, \"start_x\": {:.3f}, \"start_y\": {:.3f}, \"dist\": {:.3f}, \"backwards\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"cruise_vel\": {:.1f}, \"accel\": {:.1f}, \"init_vel\": {:.1f}, \"final_vel\": {:.1f}, \"profile_time\": {:.3f}, \"max_time\": {:.2f}}}\n",
-    start_time, x, y, startX, startY, dist, backwards, early_exit_range, settle_range, constraints.cruise_vel, constraints.accel, constraints.init_vel, constraints.final_vel, motion->totalTime(), max_time));
+    "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"profile\", \"x\": {:.3f}, \"y\": {:.3f}, \"start_x\": {:.3f}, \"start_y\": {:.3f}, \"dist\": {:.3f}, \"backwards\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"cruise_vel\": {:.1f}, \"accel\": {:.1f}, \"init_vel\": {:.1f}, \"final_vel\": {:.1f}, \"profile_time\": {:.3f}, \"max_time\": {:.2f}, \"min_speed\": {:.1f}}}\n",
+    start_time, x, y, startX, startY, dist, backwards, early_exit_range, settle_range, constraints.cruise_vel, constraints.accel, constraints.init_vel, constraints.final_vel, motion->totalTime(), max_time, min_speed));
 }
 
 void tank_motion_profile::execute() {
@@ -116,8 +121,10 @@ void tank_motion_profile::execute() {
 
   int dirSign = backwards ? -1 : 1; // backwards: negate translational voltage
 
-  if (early_exit_range > 0 && lateral_error <= early_exit_range) {
+  //with min_speed set, an early_exit_range of 0 still hands off(the moment we cross the target line) instead of waiting to settle
+  if ((early_exit_range > 0 || min_speed > 0) && lateral_error <= early_exit_range) {
     finished = true;
+    chained_exit = min_speed > 0;
     return;
   }
 
@@ -178,8 +185,10 @@ bool tank_motion_profile::isFinished() {
 }
 
 void tank_motion_profile::end(bool interrupted) {
-  drive->setVoltageLeft(0);
-  drive->setVoltageRight(0);
+  if (!(chained_exit && !interrupted)) { //on a chained exit the next motion takes over at speed, don't zero the motors in between
+    drive->setVoltageLeft(0);
+    drive->setVoltageRight(0);
+  }
   delete motion; //don't want memory leaks
 }
 

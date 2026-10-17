@@ -7,7 +7,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from app.planner.codegen import export_paths
-from app.planner.plan import Group, list_plans
+from app.planner.plan import Group
+from app.planner.store import list_plans
 from app.planner.simulate import can_async
 from app.planner.steps import STEP_TYPES, num
 
@@ -55,23 +56,34 @@ class PlanPanel(QWidget):
         self._editor_for = None       #(path, step type) the param editor was built for
         self._param_widgets = {}      #param name -> (param, widget)
 
-        #three panes you can resize: steps (list + settings) / selected step's params / generated code.
-        #The param editor gets its own pane so it's always on screen, not scrolled off below the list.
+        #Collapsible sections (laptop screens are small): Function settings, Add step buttons, the step list and the
+        #code preview each fold away. Add step and Code start folded; the list and the step editor stay open.
+        top = QWidget()
+        top_layout = QVBoxLayout(top)
+        top_layout.setContentsMargins(6, 0, 6, 0)
+        top_layout.setSpacing(2)
+        self.settings_toggle = self._section_toggle()
+        self.settings_toggle.toggled.connect(self._show_settings)
+        top_layout.addWidget(self.settings_toggle)
+        self.settings_box = self._build_settings()
+        top_layout.addWidget(self.settings_box)
+        self.add_toggle = self._section_toggle("Add step")
+        self.add_box = self._build_add_buttons()
+        self.add_toggle.toggled.connect(lambda on: self._fold(self.add_toggle, self.add_box, "Add step", on))
+        top_layout.addWidget(self.add_toggle)
+        top_layout.addWidget(self.add_box)
+        self.list_toggle = self._section_toggle("Steps")
+        top_layout.addWidget(self.list_toggle)
+        self._show_settings(False)
+        self.add_toggle.setChecked(False)
+        self._fold(self.add_toggle, self.add_box, "Add step", False)
+
         steps = QWidget()
         steps_layout = QVBoxLayout(steps)
         steps_layout.setContentsMargins(6, 0, 6, 0)
-        self.settings_toggle = QToolButton()
-        self.settings_toggle.setCheckable(True)
-        self.settings_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.settings_toggle.setStyleSheet("QToolButton { border: none; font-weight: bold; }")
-        self.settings_toggle.toggled.connect(self._show_settings)
-        steps_layout.addWidget(self.settings_toggle)
-        self.settings_box = self._build_settings()
-        steps_layout.addWidget(self.settings_box)
-        steps_layout.addWidget(self._build_add_buttons())
         steps_layout.addWidget(self._build_step_list(), 1)
         steps_layout.addLayout(self._build_list_buttons())
-        self._show_settings(False)
+        self.list_toggle.toggled.connect(lambda on: self._fold(self.list_toggle, self.steps_scroll, "Steps", on))
 
         editor = QWidget()
         editor_layout = QVBoxLayout(editor)
@@ -89,6 +101,7 @@ class PlanPanel(QWidget):
 
         splitter = QSplitter(Qt.Vertical)
         splitter.setChildrenCollapsible(False)
+        scrolls = []
         for pane in (steps, editor):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -96,12 +109,16 @@ class PlanPanel(QWidget):
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             scroll.setFrameShape(QScrollArea.NoFrame)
             splitter.addWidget(scroll)
-        splitter.addWidget(self._build_code())
-        splitter.setSizes([420, 300, 180])
+            scrolls.append(scroll)
+        self.steps_scroll = scrolls[0]
+        splitter.setSizes([300, 300])
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 6, 0, 0)
         layout.addLayout(self._build_plan_row())
+        layout.addWidget(top)
         layout.addWidget(splitter, 1)
+        layout.addWidget(self._build_code())
+        self.list_toggle.setChecked(True)
 
         planner.changed.connect(self.refresh)
         planner.plan_switched.connect(self._load_plan_fields)
@@ -115,6 +132,19 @@ class PlanPanel(QWidget):
             w.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             w.setMinimumContentsLength(10)
         return w
+
+    def _section_toggle(self, text=""):
+        b = QToolButton()
+        b.setCheckable(True)
+        b.setText(text)
+        b.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        b.setStyleSheet("QToolButton { border: none; font-weight: bold; }")
+        return b
+
+    def _fold(self, toggle, target, text, on):
+        target.setVisible(on)
+        toggle.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        toggle.setText(text)
 
     def _show_settings(self, on):
         self.settings_box.setVisible(on)
@@ -187,6 +217,11 @@ class PlanPanel(QWidget):
         self.set_pose_check = QCheckBox("chassis->setPose(start) at the top")
         self.set_pose_check.toggled.connect(lambda on: self._plan_field("set_pose", on))
         form.addRow("", self.set_pose_check)
+        self.wall_pose_check = QCheckBox("seed start from wall sensors (setPose = fallback)")
+        self.wall_pose_check.setToolTip("Emits wallLoc->set_initial_pose(heading, quadrant) and adds a\n"
+                                        "WallLocalization* wallLoc parameter. The quadrant comes from the start x/y signs.")
+        self.wall_pose_check.toggled.connect(lambda on: self._plan_field("wall_pose", on))
+        form.addRow("", self.wall_pose_check)
 
         self.params_edit = QLineEdit()
         self.params_edit.setPlaceholderText("e.g. Lift* lift, piston* claw")
@@ -242,6 +277,10 @@ class PlanPanel(QWidget):
         w = QWidget()
         layout = QVBoxLayout(w)
         layout.setContentsMargins(6, 0, 6, 6)
+        layout.setSpacing(2)
+        self.code_toggle = self._section_toggle("Code")
+        self.code_toggle.toggled.connect(lambda on: self._fold(self.code_toggle, self.code_tabs, "Code", on))
+        layout.addWidget(self.code_toggle)
         self.code_tabs = QTabWidget()
         mono = QFont("Consolas", 9)
         self.cpp_view, self.h_view = QPlainTextEdit(), QPlainTextEdit()
@@ -258,6 +297,8 @@ class PlanPanel(QWidget):
         row.addWidget(_tool(self.actions["copy_code"], "Copy .cpp"))
         row.addWidget(_tool(self.actions["export"], "Export"))
         layout.addLayout(row)
+        self.code_toggle.setChecked(False)
+        self._fold(self.code_toggle, self.code_tabs, "Code", False)
         return w
 
     # ---- plan-level fields
@@ -293,6 +334,7 @@ class PlanPanel(QWidget):
             i = self.limit_combo.count() - 1
         self.limit_combo.setCurrentIndex(i)
         self.set_pose_check.setChecked(plan.set_pose)
+        self.wall_pose_check.setChecked(plan.wall_pose)
         self.params_edit.setText(plan.extra_params)
         self.includes_edit.setText(plan.extra_includes)
         self._loading = False
@@ -314,6 +356,7 @@ class PlanPanel(QWidget):
         self._update_settings_summary()
 
         warn = [text for _, text in sim.warnings]
+        warn += [ln for ln in planner.notice.splitlines() if ln.strip()]
         sel_sim = sim.by_path.get(planner.selected)
         if sel_sim is not None:
             warn += [f"step {sel_sim.number}: {n}" for n in sel_sim.notes if "past the wall" not in n]

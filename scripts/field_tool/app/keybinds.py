@@ -26,6 +26,12 @@ BINDS = [
     Bind("fit", "Fit field to window", "F", "View"),
     Bind("grid", "Toggle tile grid", "G", "View"),
     Bind("axes", "Toggle axes", "A", "View"),
+    Bind("zoom_in", "Zoom in", "=", "View"),
+    Bind("zoom_out", "Zoom out", "-", "View"),
+    Bind("pan_left", "Pan left", "Alt+Left", "View"),
+    Bind("pan_right", "Pan right", "Alt+Right", "View"),
+    Bind("pan_up", "Pan up", "Alt+Up", "View"),
+    Bind("pan_down", "Pan down", "Alt+Down", "View"),
     Bind("robot_trace", "Toggle robot odom path", "R", "Run"),
     Bind("camera_trace", "Toggle camera tag path", "C", "Run"),
     Bind("ghost", "Toggle robot outline", "B", "Run"),
@@ -77,8 +83,8 @@ BY_ID = {b.id: b for b in BINDS}
 #not rebindable, just listed in the menu so everything is in one place
 MOUSE_CONTROLS = [
     ("Left click", "Select the nearest point (planner: a step's end dot selects the step)"),
-    ("Scroll", "Zoom"),
-    ("Middle / right drag, Ctrl + left drag", "Pan"),
+    ("Scroll / two-finger scroll", "Zoom (keyboard: = and -)"),
+    ("Middle / right drag, Ctrl + left drag", "Pan (keyboard: Alt + arrows)"),
     ("Planner: click while placing", "Place the step (Shift = snap 1 in / 15°, Alt = backwards)"),
     ("Planner: drag a handle", "Move a waypoint / start pose, set a distance or angle (Shift = snap)"),
 ]

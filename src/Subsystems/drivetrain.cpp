@@ -305,20 +305,20 @@ void drivetrain::set_speeds_lateral(Speed speed, MotionParams params){
     }
 }
 
-Rotate* drivetrain::rotate(double target_ang, double early_exit_range, double max_time, double settle_range, int max_speed){
-    return new Rotate(target_ang, this, early_exit_range, max_time, settle_range, max_speed);
+Rotate* drivetrain::rotate(double target_ang, double early_exit_range, double max_time, double settle_range, int max_speed, int min_speed){
+    return new Rotate(target_ang, this, early_exit_range, max_time, settle_range, max_speed, min_speed);
 }
 
-Rotate* drivetrain::rotate(std::function<double()> target_ang_supplier, double early_exit_range, double max_time, double settle_range, int max_speed){
-    return new Rotate(target_ang_supplier, this, early_exit_range, max_time, settle_range, max_speed);
+Rotate* drivetrain::rotate(std::function<double()> target_ang_supplier, double early_exit_range, double max_time, double settle_range, int max_speed, int min_speed){
+    return new Rotate(target_ang_supplier, this, early_exit_range, max_time, settle_range, max_speed, min_speed);
 }
 
-tank_motion_profile* drivetrain::Tank_motion_profile(double x, double y, double early_exit_range, Speed speed, double max_time, double settle_range, bool backwards){
+tank_motion_profile* drivetrain::Tank_motion_profile(double x, double y, double early_exit_range, Speed speed, double max_time, double settle_range, bool backwards, double min_speed){
     MotionParams p = get_lateral_params(speed);
-    return new tank_motion_profile(this, x, y, p, early_exit_range, max_time, settle_range, backwards);
+    return new tank_motion_profile(this, x, y, p, early_exit_range, max_time, settle_range, backwards, min_speed);
 }
 
-tank_motion_profile* drivetrain::moveForward(double distance, bool backwards, double maxSpeed, double early_exit_range, double max_time, double settle_range){
+tank_motion_profile* drivetrain::moveForward(double distance, bool backwards, double maxSpeed, double early_exit_range, double max_time, double settle_range, double min_speed){
     MotionParams p = get_lateral_params(Speed::NORMAL);
     p.cruise_vel = maxSpeed;
 
@@ -330,33 +330,35 @@ tank_motion_profile* drivetrain::moveForward(double distance, bool backwards, do
         double dir = backwards ? -1.0 : 1.0;
         return Pose(curPos.x + dir * distance * std::cos(curPos.theta),
                     curPos.y + dir * distance * std::sin(curPos.theta));
-    }, p, early_exit_range, max_time, settle_range, backwards);
+    }, p, early_exit_range, max_time, settle_range, backwards, min_speed);
 }
 
 
-Rotate* drivetrain::rotate_to_point(double x, double y, double early_exit_range, bool backwards, double max_time, double settle_range, int max_speed){
+Rotate* drivetrain::rotate_to_point(double x, double y, double early_exit_range, bool backwards, double max_time, double settle_range, int max_speed, int min_speed){
     //Heading is resolved lazily(at the Rotate's initialize(), not here) since this factory runs whenever
     //the enclosing Sequence is being BUILT - if it's nested after other motions in an outer Sequence, the
     //robot hasn't actually reached this point yet, so gpos() here would be stale/wrong.
     return rotate([this, x, y, backwards](){
         return radToDeg(angleDifference(gpos(), x, y)) + (backwards ? 180.0 : 0.0);
-    }, early_exit_range, max_time, settle_range, max_speed);
+    }, early_exit_range, max_time, settle_range, max_speed, min_speed);
 }
 
-Swing* drivetrain::swing(double target_ang, DriveSide locked_side, bool reverse, double early_exit_range, double max_time, double settle_range, int max_speed){
-    return new Swing(target_ang, locked_side, this, reverse, early_exit_range, max_time, settle_range, max_speed);
+Swing* drivetrain::swing(double target_ang, DriveSide locked_side, bool reverse, int max_speed, int min_speed, double early_exit_range, double max_time, double settle_range){
+    return new Swing(target_ang, locked_side, this, reverse, max_speed, min_speed, early_exit_range, max_time, settle_range);
 }
 
 constexpr double move_to_point_turn_gate = 30.0; //was 15
 constexpr double move_to_point_turn_early_exit_ratio = 1.0 / 3.0; //turn exits early at gate/3
+constexpr int move_to_point_chained_turn_min_speed = 25; //out of 127, floor for moveToPoint's turn step when min_speed > 0(untested, tune from a run)
 
-Sequence* drivetrain::moveToPoint(double x, double y, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range, double turn_gate){
+Sequence* drivetrain::moveToPoint(double x, double y, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range, double turn_gate, double min_speed){
     double gate = (turn_gate == Units::AUTO ? move_to_point_turn_gate : turn_gate);
 
-    //Create the two commands.
-    Rotate* rotate_command = rotate_to_point(x, y, gate * move_to_point_turn_early_exit_ratio, backwards);
+    //Create the two commands. With min_speed the turn keeps spinning into the drive instead of tapering to a stop.
+    Rotate* rotate_command = rotate_to_point(x, y, gate * move_to_point_turn_early_exit_ratio, backwards, Units::AUTO_TIME, Units::AUTO, 127,
+                                             min_speed > 0 ? move_to_point_chained_turn_min_speed : 0);
     rotate_command->skip_range = degToRad(gate);
-    Command* tank_motion_profile_command = Tank_motion_profile(x, y, early_exit_range, speed, max_time, settle_range, backwards);
+    Command* tank_motion_profile_command = Tank_motion_profile(x, y, early_exit_range, speed, max_time, settle_range, backwards, min_speed);
 
     //Create a sequence and return it
     return new Sequence({rotate_command, tank_motion_profile_command});

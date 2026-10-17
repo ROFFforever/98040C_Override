@@ -21,11 +21,13 @@ Run from the repo root: `python scripts/field_tool/run.py` (needs PySide6 + nump
   - `plan.py`: the plan data + JSON load/save
   - `simulate.py`: pose after each step, timing, warnings
   - `codegen.py`: plan → `.h` / `.cpp`
+  - `parse.py`: `.cpp` → plan (reads back the generated shape plus hand edits; unknown lines become Custom code steps)
+  - `store.py`: plans live in `src/GeneratedAutons/<name>.cpp` (+ `include/GeneratedAutons/<name>.h`), old json plans migrate on first open
   - `planner.py`: state, undo/redo, placing, autosave
   - `playback.py`: plan → a playable trace, auto start-time alignment
   - `plan_overlay.py` / `plan_panel.py`: field drawing / side panel
 - `assets/field.png`: field image (copied from Downloads)
-- `autons/`: saved plans (`<name>.json`). These are the source of truth for generated autons, so keep them in git
+- `autons/`: old-format plans (`<name>.json`). No longer used once a plan has its `.cpp`; safe to delete after that
 - `settings/`: created on first save. `keybinds.json` only stores keys you changed; `robot_profiles.json` stores the profiles
 
 ## Coordinates
@@ -54,9 +56,13 @@ Build an auton out of your existing factories, see it on the field, export C++.
   - *Lines*: one statement per step in a `void name(drivetrain* chassis)`. Each step is `await(...)` (blocks) or, with Async (Shift+A), `...->schedule()` (keeps going). Waits become `pros::delay()`. Ctrl+G wraps a step in a `new Sequence({...})`; Ctrl+↑/↓ moves steps into/out of it. The sequence itself can be awaited or async.
   - *Sequence*: the whole auton is `Sequence* name(drivetrain* chassis)` returning one `new Sequence({...})`, like `Autons/SoloAWP.cpp`. Async is ignored.
 - **Custom code** (8): pasted as-is. In Lines style it's a statement (add your own subsystem calls between steps); inside a Sequence it has to be a `Command*` expression. Add whatever it uses to *Extra params* (e.g. `Lift* lift`) and *Extra includes* (e.g. `Subsystems/Lift.h, Commands/LiftMoveToCommand.h`).
+- **Chaining (Min speed)**: Rotate, Face, Swing, Move to point, Drive to point and Move forward have a *Min speed (chain)* box (last argument, 0 = off). Above 0 the motion never slows below it, hands off the moment it crosses its target (or the early exit range), and leaves the motors running into the next motion, like LemLib's `minSpeed`. Turns take it out of 127, moves in in/s (the profile plans to arrive at that speed instead of 0). The planner drops the settle time for these and the path timing uses the faster arrival. Only use it when another motion follows: the last step of an auton should stay at 0. *Turn gate* on Move to point is the `turn_gate` argument (auto = 30°).
 - **Warnings**: robot outline past the wall, an async chassis command getting cancelled by the next chassis command (the scheduler's CancelRunning), over the 15 s / 60 s limit. Times are rough estimates from the profile's speeds, not a real sim.
 - **Export** (Ctrl+E): writes `include/GeneratedAutons/<name>.h` and `src/GeneratedAutons/<name>.cpp`. Not `src/Autons/`: that's a COLD_DIR, and the cold build only takes its top-level files, so a subfolder there would never compile. Include the header in `main.cpp` and call it from `autonomous()` (Lines: `name(&chassis);`, Sequence: `await(name(&chassis));`). Each file's first line holds a hash. If you edit the file by hand, export asks before overwriting it.
-- Plans autosave to `autons/<name>.json`. The name is the C++ function name.
+- The plan IS the exported `.cpp`: it autosaves there, and edits made to the file (VS Code, anything) show up in
+  the tool within a second (Ctrl+Z undoes a reload). If the file is mid-edit and unreadable, the tool keeps the
+  last good plan and shows a warning. The name is the C++ function name. Only files the tool wrote (first line
+  `// field_tool plan`) are listed or overwritten - RedHard.cpp etc. are never touched.
 - **Play the plan**: while the planner is open, the plan is a third trace ("Plan", blue) on the same playhead as odom/camera. Space, the slider, speed and ←/→ all work on it. Clicking the planned path, or Shift+↑, opens its data box (predicted x/y/θ or v/a/ω). The bottom bar's *Plan starts at* sets where plan t = 0 falls on the run's clock. **Auto** lines the plan's first motion up with the odom's first motion (camera's if there's no odom), or uses 0 with no run loaded. Ctrl+Home starts the plan at the playhead. The playback is the same rough motion model as the time estimate (trapezoid moves, constant-rate turns), not a physics sim. When a later chassis command interrupts an async one, the async motion is cut off where the new one starts.
 
 ## Controls

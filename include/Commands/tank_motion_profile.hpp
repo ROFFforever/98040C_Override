@@ -35,9 +35,15 @@ class tank_motion_profile : public Command{
 
         bool backwards; //true if driving to (x,y) in reverse
 
+        //motion chaining(min_speed > 0): the profile plans to arrive at min_speed(in/s) instead of 0, exits on crossing the
+        //target line(or early_exit_range before it), and end() leaves the motors running so the next motion picks up the speed
+        double min_speed = 0;
+        bool chained_exit = false;
+
     public:
-        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
-        tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false);
+        //min_speed is in inches/sec. 0 = old behavior(decelerate to final_vel, settle, stop)
+        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false, double min_speed=0);
+        tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false, double min_speed=0);
         void initialize() override;
         void execute() override;
         bool isFinished() override;

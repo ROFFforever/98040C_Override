@@ -136,7 +136,15 @@ class FieldView(QGraphicsView):
             self.view_changed.emit()
 
     def wheelEvent(self, event):
-        factor = 1.0015 ** event.angleDelta().y()
+        self.zoom_by(1.0015 ** event.angleDelta().y())
+
+    def pan_by(self, dx, dy):
+        """Keyboard pan, in screen pixels (positive = view moves right / down)."""
+        self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + dx)
+        self.verticalScrollBar().setValue(self.verticalScrollBar().value() + dy)
+        self.view_changed.emit()
+
+    def zoom_by(self, factor):
         new_zoom = min(max(self._zoom * factor, 1.0), self.MAX_ZOOM)
         if new_zoom == 1.0:
             self.fit_field()  #snap back exactly, so zooming all the way out always re-centers

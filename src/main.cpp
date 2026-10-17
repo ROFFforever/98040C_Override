@@ -28,7 +28,9 @@
 #include "Commands/WaitCommand.h"
 #include "Autons/SoloAWP.h"
 #include "Autons/OdomAccuracyTest.h"
-#include "TestAutons/OdomCameraTests.h"
+#include "GeneratedAutons/RedHard.h"
+#include "GeneratedAutons/auton_1.h"
+#include "GeneratedAutons/auton_2.h"
 #include <format>
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
@@ -44,14 +46,6 @@
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
 
 bool wall_enabled=true;
-
-//which odom/camera test autonomous() runs (TestAutons/OdomCameraTests), 0 = off.
-//Picked with the brain screen's left/right buttons so it can change without re-uploading.
-int odomTestId = 0;
-void showOdomTest(){
-	pros::lcd::set_text(2, odomTestId == 0 ? std::string("Odom test: off  (< > to pick)")
-	                                       : std::format("Odom test: {}  (< > to pick)", odomTestId));
-}
 
 #ifdef ROBOT_MAIN
 pros::MotorGroup leftMotors({11,5,4});   // port numbers; negative = reversed
@@ -229,9 +223,6 @@ void initialize() {
 	fflush(stdout);
 
 	pros::lcd::initialize();
-	pros::lcd::register_btn0_cb([]{ odomTestId = (odomTestId + ODOM_TEST_COUNT) % (ODOM_TEST_COUNT + 1); showOdomTest(); });
-	pros::lcd::register_btn2_cb([]{ odomTestId = (odomTestId + 1) % (ODOM_TEST_COUNT + 1); showOdomTest(); });
-	showOdomTest();
 
 	//Sets mode to SD card based logging. It's enables faster writes, is more reliable, and is persistent 
 	//compared to wireless logging
@@ -266,7 +257,8 @@ void initialize() {
 	chassis.angular_kS = 1910;
 #else
 	chassis.set_speeds_lateral(Speed::SLOW, {50.0, 0.0, 25.0});
-	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 120.0});
+	//was 60/120: FF needed ~11.7V at the top of the ramp (speed_test_14). 55/150 fits under ~11.3V
+	chassis.set_speeds_lateral(Speed::NORMAL, {55.0, 0.0, 150.0});
 	chassis.set_speeds_lateral(Speed::FAST, {70.0, 0.0, 120.0});
 
 	chassis.angular_kS = 1071;
@@ -318,25 +310,30 @@ void autonomous() {
 	CommandScheduler::setDefaultsEnabled(false);
 	CommandScheduler::cancelAll();
 	TELEMETRY.send(Telemetry::Channel::Debug, std::format(
-		"{{\"t\": {}, \"event\": \"auton_start\", \"odomTestId\": {}}}\n", pros::millis(), odomTestId));
+		"{{\"t\": {}, \"event\": \"auton_start\"}}\n", pros::millis()));
+
+	//AUTON SELECT: 0 = none (falls through to the test code below), 1 = RedHard, 2 = BlueHard
+	constexpr int AUTON_SELECT = 0;
+	if(AUTON_SELECT != 0){
+		//seed the start pose from the wall sensors, RedHard/BlueHard use their nominal start pose if a sensor misses
+		bool seeded = (AUTON_SELECT == 1) ? wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::NegXNegY)
+		                                  : wallLocalization.set_initial_pose(270, WallLocalization::Quadrant::PosXPosY);
+		Sequence* hardAuton = (AUTON_SELECT == 1) ? RedHard(&chassis, !seeded) : BlueHard(&chassis, !seeded);
+		await(hardAuton); //blocks until the auton finishes, so END below really means it's done
+		printf("END\n"); //tells auto_record.py to stop the camera recording
+		return;
+	}
 
 #ifdef HAS_LIFT
 	lift.moveTo(LiftPos::SECOND_CONE)->schedule();
 #else
-	if(odomTestId != 0){
-		if(odom_test_init_pose(&wallLocalization, &chassis)){
-			odom_camera_test(odomTestId, &chassis)->schedule();
-		}
-		return;
-	}
-
-	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
+	// wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
 	//nothing here since test bot no have any formal auton
 //20 in y , 22.5 in x
 
 	//TRACKING WHEEL OFFSET TEST: slow in-place spin(3 turns CCW, ~2.5V) for data analysis only.
 	//Pose telemetry logs heading + vert + horiz, so offset = wheel distance / heading change.
-	(new RawTurn(&chassis, 1080, 2500, 14000))->schedule();
+	// (new RawTurn(&chassis, 1080, 2500, 14000))->schedule();
 
 	//AUTON SEQUENCE TEST 1
 	// (new Sequence({
@@ -347,12 +344,14 @@ void autonomous() {
 
 	// AUTON SEQUENCE TEST 2
 	// (new Sequence({
-	// 	chassis.swing(180, DriveSide::LEFT, false, 5), //early exit range was 10 before, as of 4:53PM im changing it to be higher for testing.
+	// 	chassis.swing(180, DriveSide::LEFT, false, 127, 5), //early exit range was 10 before, as of 4:53PM im changing it to be higher for testing.
 	// 	chassis.moveToPoint(-12.007, -46.877, 0)
 	// }))->schedule();
-	
+	auton_1(&chassis, &wallLocalization);
+
 #endif
-	
+	printf("END\n"); //tells auto_record.py to stop the camera recording
+
 }
 
 
@@ -372,6 +371,7 @@ void opcontrol() {
 	//ALL OF THE BELOW ARE SIMPLY CONFIG/TUNING TESTS:
 
 	// {
+	
 
 	// chassis.setPose(0,0,0); //TODO remove this later. Temporarily here for testing.
 

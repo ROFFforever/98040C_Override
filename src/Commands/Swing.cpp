@@ -8,12 +8,13 @@ const double swing_settle_range_config = degToRad(5);
 const double swing_auto_time_base = 0.5;
 const double swing_auto_time_per_rad = 0.4;
 
-Swing::Swing(double target_ang, DriveSide locked_side, drivetrain* drive, bool reverse, double early_exit_range, double max_time, double settle_range, int max_speed){
+Swing::Swing(double target_ang, DriveSide locked_side, drivetrain* drive, bool reverse, int max_speed, int min_speed, double early_exit_range, double max_time, double settle_range){
     this->target_ang=degToRad(target_ang);
     this->locked_side=locked_side;
     this->reverse=reverse;
     this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
+    this->min_mV=std::min((int)(min_speed * 12000.0 / 127), max_mV);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
     this->max_time = auto_time ? 1.0 : max_time;
@@ -23,6 +24,7 @@ Swing::Swing(double target_ang, DriveSide locked_side, drivetrain* drive, bool r
 void Swing::initialize(){
     finished = false;
     exit_consecutive_counter = 0;
+    chained_exit = false;
 
     initial_ang=drive->gpos().theta;
     ang_error = angleDifference(target_ang,initial_ang);
@@ -32,6 +34,7 @@ void Swing::initialize(){
         if(required_sign > 0 && ang_error < 0) ang_error += 2 * M_PI;
         else if(required_sign < 0 && ang_error > 0) ang_error -= 2 * M_PI;
     }
+    initial_sign = (int)sgn(ang_error);
 
     drive->residual_angular_pid->reset(ang_error);
     drive->residual_angular_pid->set_target(ang_error);
@@ -47,8 +50,8 @@ void Swing::initialize(){
     start_time=pros::millis();
 
     TELEMETRY.send(Telemetry::Channel::Debug, std::format(
-        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"swing\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"locked_side\": \"{}\", \"reverse\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}}}\n",
-        start_time, radToDeg(target_ang), radToDeg(initial_ang), locked_side == DriveSide::LEFT ? "LEFT" : "RIGHT", reverse, radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV));
+        "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"swing\", \"target\": {:.2f}, \"start_heading\": {:.2f}, \"locked_side\": \"{}\", \"reverse\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"max_time\": {:.2f}, \"max_mV\": {}, \"min_mV\": {}}}\n",
+        start_time, radToDeg(target_ang), radToDeg(initial_ang), locked_side == DriveSide::LEFT ? "LEFT" : "RIGHT", reverse, radToDeg(early_exit_range), radToDeg(settle_range), max_time, max_mV, min_mV));
 }
 
 void Swing::execute(){
@@ -66,6 +69,14 @@ void Swing::execute(){
 
     if(early_exit_range > 0 && fabs(angError) <= early_exit_range){
         finished=true;
+        chained_exit = min_mV > 0;
+        return;
+    }
+
+    //chaining: hand off as soon as we pass the target, like lemlib's turnTo with minSpeed
+    if(min_mV > 0 && initial_sign != 0 && (int)sgn(angError) == -initial_sign){
+        finished=true;
+        chained_exit = true;
         return;
     }
 
@@ -86,13 +97,17 @@ void Swing::execute(){
     bool nearTarget = fabs(angError) < kKickDeadbandRad;
     int kick = nearTarget ? 0 : (int)(drive->angular_kS * kKickScale) * (int)sgn(angError);
 
-    int out = std::clamp(mV + kick, -max_mV, max_mV);
+    int out = mV + kick;
+    //min speed floor: never let the PID taper below min_mV(keeps swinging toward the target)
+    if(min_mV > 0 && abs(out) < min_mV) out = min_mV * (int)sgn(angError);
+    out = std::clamp(out, -max_mV, max_mV);
     if(locked_side == DriveSide::LEFT) drive->setVoltageRight(out);
     else drive->setVoltageLeft(-out);
 }
 
 void Swing::end(bool interupted){
     drive->setBrakeMode(locked_side, original_brake_mode);
+    if(chained_exit && !interupted) return; //the next motion takes over at speed, don't zero the motors in between
     drive->set(0);
 }
 
