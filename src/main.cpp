@@ -23,9 +23,12 @@
 #include "Commands/Swing.h"
 #include "Commands/tank_motion_profile.hpp"
 #include "Subsystems/Lift.h"
+#include "Commands/LiftMoveTo.h"
+#include "Commands/Tuning/RawTurn.h"
 #include "Commands/WaitCommand.h"
 #include "Autons/SoloAWP.h"
 #include "Autons/OdomAccuracyTest.h"
+#include "TestAutons/OdomCameraTests.h"
 #include <format>
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
@@ -40,7 +43,15 @@
 #include "Commands/Tuning/MoveToPointDialTest.h"
 #include "Commands/Tuning/LateralMotionDiagnostic.h"
 
-bool wall_enabled=false;
+bool wall_enabled=true;
+
+//which odom/camera test autonomous() runs (TestAutons/OdomCameraTests), 0 = off.
+//Picked with the brain screen's left/right buttons so it can change without re-uploading.
+int odomTestId = 0;
+void showOdomTest(){
+	pros::lcd::set_text(2, odomTestId == 0 ? std::string("Odom test: off  (< > to pick)")
+	                                       : std::format("Odom test: {}  (< > to pick)", odomTestId));
+}
 
 #ifdef ROBOT_MAIN
 pros::MotorGroup leftMotors({11,5,4});   // port numbers; negative = reversed
@@ -67,8 +78,10 @@ velocity_feed_forward ff_angular(0.931 *1000,  // kV
 
 
 #ifdef HAS_LIFT
-pros::Motor lift_1(20);
-Lift lift({{&lift_1, false}});
+pros::Motor lift_1(1);
+//TODO TUNE: placeholder gains. Error is in degrees, output is mV. Add &lift_rotation as the 3rd Lift arg once the rotation sensor is installed
+PID lift_pid(1200, 0, 0, 0, 0);
+Lift lift({{&lift_1, false}}, &lift_pid);
 pros::Motor claw_1(8);
 Claw claw({{&claw_1, true}}); //inverted
 #endif
@@ -200,12 +213,23 @@ void initialize() {
 	// 	}
 	// }, "Heartbeat");
 
+	//lift always starts physically down, so zero it here. Motor encoders only reset when the motor loses power,
+	//not when the program restarts, so without this the 0 point would be wherever it was last left.
+#ifdef HAS_LIFT
+	lift.resetPosition();
+	lift.holdPosition();
+	lift.setDebugStream(true); //set true to stream lift position over pros terminal every 0.5s
+#endif
+
 	int runId = nextRunId();
 	//a message for the recording script to start(provides run ID)
 	printf("RUN_ID:%d\n", runId);
 	fflush(stdout);
 
 	pros::lcd::initialize();
+	pros::lcd::register_btn0_cb([]{ odomTestId = (odomTestId + ODOM_TEST_COUNT) % (ODOM_TEST_COUNT + 1); showOdomTest(); });
+	pros::lcd::register_btn2_cb([]{ odomTestId = (odomTestId + 1) % (ODOM_TEST_COUNT + 1); showOdomTest(); });
+	showOdomTest();
 
 	//Sets mode to SD card based logging. It's enables faster writes, is more reliable, and is persistent 
 	//compared to wireless logging
@@ -291,12 +315,26 @@ void autonomous() {
 	//no teleop commands grabbing subsystems between auton steps, and clear out anything running from disabled
 	CommandScheduler::setDefaultsEnabled(false);
 	CommandScheduler::cancelAll();
+	TELEMETRY.send(Telemetry::Channel::Debug, std::format(
+		"{{\"t\": {}, \"event\": \"auton_start\", \"odomTestId\": {}}}\n", pros::millis(), odomTestId));
 
 #ifdef HAS_LIFT
+	lift.moveTo(LiftPos::SECOND_CONE)->schedule();
 #else
+	if(odomTestId != 0){
+		if(odom_test_init_pose(&wallLocalization, &chassis)){
+			odom_camera_test(odomTestId, &chassis)->schedule();
+		}
+		return;
+	}
+
 	wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
 	//nothing here since test bot no have any formal auton
 //20 in y , 22.5 in x
+
+	//TRACKING WHEEL OFFSET TEST: slow in-place spin(3 turns CCW, ~2.5V) for data analysis only.
+	//Pose telemetry logs heading + vert + horiz, so offset = wheel distance / heading change.
+	(new RawTurn(&chassis, 1080, 2500, 14000))->schedule();
 
 	//AUTON SEQUENCE TEST 1
 	// (new Sequence({
@@ -310,28 +348,7 @@ void autonomous() {
 	// 	chassis.swing(180, DriveSide::LEFT, false, 5), //early exit range was 10 before, as of 4:53PM im changing it to be higher for testing.
 	// 	chassis.moveToPoint(-12.007, -46.877, 0)
 	// }))->schedule();
-
-	pros::delay(800);
-
-	await(chassis.moveForward(12, false, 30));
-	pros::delay(600);
-	await(chassis.rotate(180));
-	pros::delay(600);
-
-	await(chassis.moveForward(48, false, 25));
-	pros::delay(600);
-	await(chassis.moveForward(48, true, 25));
-	pros::delay(600);
-
-	await(chassis.moveForward(48, false, 70));
-	pros::delay(600);
-	await(chassis.moveForward(48, true, 70));
-	pros::delay(600);
-
-	await(chassis.rotate(270));
-	pros::delay(600);
-	await(chassis.rotate(0));
-	pros::delay(800);
+	
 #endif
 	
 }
@@ -422,15 +439,6 @@ void opcontrol() {
 		// if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X) && !angularTune.scheduled()){
 		// 	angularTune.schedule();
 		// }
-
-		// Hold the lift at its physical home position and tap Y to re-zero it there -
-		// its only position reference is the motor encoder, which drifts from that
-		// home point over a session of testing/direction changes.
-#ifdef HAS_LIFT
-		if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_Y)){
-			lift.resetPosition();
-		}
-#endif
 
 	}
 }
