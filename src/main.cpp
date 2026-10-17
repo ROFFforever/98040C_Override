@@ -104,9 +104,9 @@ PID angular_pid(15.2 * 1000.0,0,117 * 1000,0,0);
 
 // //
 // {"kS": 0.671754342335145, "kV": 0.13186696277648247, "kA": -0.0006958734869371364, "r2": 0.803989358366047, "rmse": 2.7154202310992996, "n": 1216, "vRange": [-123.13297872820009, 193.5721178570053], "aRange": [-19357.211785700532, 19357.211785700532]}
-velocity_feed_forward ff_lateral(0.13186696277648247 * 1000,  // kV
-                          0, // kA is 0 because it doens't pull much weight
-                          0.671754342335145 * 1000);  // kS
+velocity_feed_forward ff_lateral(0.150 * 1000,  // kV
+                          0.014 * 1000, // kA
+                          1.0 * 1000);  // kS
 
 velocity_feed_forward ff_angular(0.8995599372169607*1000,  // kV
 0.089*1000, // kA
@@ -131,13 +131,15 @@ ClawTeleopCommand clawTeleop(&claw, &controller, pros::E_CONTROLLER_DIGITAL_L1, 
 WallSensor back_wall_sensor(14, -2.75f, 7.75f,  WallSensor::Side::BACK);
 
 //vertOffset=0.75  horizOffset=7.26
-WallSensor left_wall_sensor(9, 2.25f, 6.875f,  WallSensor::Side::LEFT);
+//vertOffset was 6.875; 5.85 from the camera fit on the 10/16 runs (read ~1in long)
+WallSensor left_wall_sensor(9, 2.25f, 5.85f,  WallSensor::Side::LEFT);
 
 // vertOffset=7.30  horizOffset=1.80
 WallSensor front_wall_sensor(17, 1.80f, 8.1f,  WallSensor::Side::FRONT);
 
 
-WallSensor right_wall_sensor(4, -2.625f, 6.50f,  WallSensor::Side::RIGHT);
+//vertOffset was 6.50; 5.80 from the camera fit on the 10/16 runs (read ~0.7in long)
+WallSensor right_wall_sensor(4, -2.625f, 5.80f,  WallSensor::Side::RIGHT);
 
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
