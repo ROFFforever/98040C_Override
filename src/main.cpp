@@ -76,8 +76,13 @@ pros::Motor lift_1(1);
 //TODO TUNE: placeholder gains. Error is in degrees, output is mV. Add &lift_rotation as the 3rd Lift arg once the rotation sensor is installed
 PID lift_pid(1200, 0, 0, 0, 0);
 Lift lift({{&lift_1, false}}, &lift_pid);
-pros::Motor claw_1(8);
-Claw claw({{&claw_1, true}}); //inverted
+
+pros::Motor claw_oc(5);
+pros::Motor claw_suction(4);
+PID claw_pid(300, 0, 0, 0, 0);               // TODO TUNE
+Claw claw({{&claw_oc, false}}, {{&claw_suction, true}}, &claw_pid);
+
+
 #endif
 
 #else // ROBOT_TEST
@@ -118,7 +123,11 @@ LiftTeleopCommand liftTeleop(&lift, &controller, {
 	{pros::E_CONTROLLER_DIGITAL_B, lift.moveTo(LiftPos::FIRST_CONE)},
 	{pros::E_CONTROLLER_DIGITAL_X, lift.moveTo(LiftPos::SECOND_CONE)},
 });
-ClawTeleopCommand clawTeleop(&claw, &controller, pros::E_CONTROLLER_DIGITAL_L1, pros::E_CONTROLLER_DIGITAL_L2);
+//claw macros: one button per position
+ClawTeleopCommand clawTeleop(&claw, &controller, {
+	{pros::E_CONTROLLER_DIGITAL_L1, claw.moveTo(ClawPos::CLOSED), true}, //true = stays braked once closed so the cone stays in place
+	{pros::E_CONTROLLER_DIGITAL_L2, claw.moveTo(ClawPos::OPEN)},
+}, pros::E_CONTROLLER_DIGITAL_Y); //Y toggles suction in/off
 #endif
 #ifdef ROBOT_MAIN
 
@@ -220,6 +229,8 @@ void initialize() {
 	lift.resetPosition();
 	lift.holdPosition();
 	lift.setDebugStream(true); //set true to stream lift position over pros terminal every 0.5s
+	claw.resetPosition(); //claw is started fully open/extended before every match, so that physical position is 0
+	claw.setHold(false); //claw only holds when closed(ClawTeleopCommand switches it), so start coasting
 #endif
 
 	int runId = nextRunId();
