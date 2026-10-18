@@ -112,7 +112,12 @@ velocity_feed_forward ff_angular(0.8995599372169607*1000,  // kV
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
 
 #ifdef HAS_LIFT
-LiftTeleopCommand liftTeleop(&lift, &controller, pros::E_CONTROLLER_DIGITAL_R2, pros::E_CONTROLLER_DIGITAL_R1);
+//lift macros: one button per position
+LiftTeleopCommand liftTeleop(&lift, &controller, {
+	{pros::E_CONTROLLER_DIGITAL_A, LiftPos::DOWN},
+	{pros::E_CONTROLLER_DIGITAL_B, LiftPos::FIRST_CONE},
+	{pros::E_CONTROLLER_DIGITAL_X, LiftPos::SECOND_CONE},
+});
 ClawTeleopCommand clawTeleop(&claw, &controller, pros::E_CONTROLLER_DIGITAL_L1, pros::E_CONTROLLER_DIGITAL_L2);
 #endif
 #ifdef ROBOT_MAIN
@@ -442,5 +447,6 @@ void opcontrol() {
 		// 	angularTune.schedule();
 		// }
 
+		pros::delay(10); //yield, a bare busy loop starves lower priority tasks
 	}
 }
