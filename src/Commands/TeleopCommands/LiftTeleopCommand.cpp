@@ -3,7 +3,7 @@
 LiftTeleopCommand::LiftTeleopCommand(Lift *lift_motors, pros::Controller *controller, std::vector<LiftBind> binds)
     : lift_motors(lift_motors), controller(controller){
     for(const LiftBind& b : binds){
-        macros.push_back({b.button, lift_motors->moveTo(b.target_deg)});
+        macros.push_back({b.button, b.move});
     }
 }
 

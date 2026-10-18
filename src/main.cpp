@@ -114,9 +114,9 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 #ifdef HAS_LIFT
 //lift macros: one button per position
 LiftTeleopCommand liftTeleop(&lift, &controller, {
-	{pros::E_CONTROLLER_DIGITAL_A, LiftPos::DOWN},
-	{pros::E_CONTROLLER_DIGITAL_B, LiftPos::FIRST_CONE},
-	{pros::E_CONTROLLER_DIGITAL_X, LiftPos::SECOND_CONE},
+	{pros::E_CONTROLLER_DIGITAL_A, lift.moveTo(LiftPos::DOWN)},
+	{pros::E_CONTROLLER_DIGITAL_B, lift.moveTo(LiftPos::FIRST_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_X, lift.moveTo(LiftPos::SECOND_CONE)},
 });
 ClawTeleopCommand clawTeleop(&claw, &controller, pros::E_CONTROLLER_DIGITAL_L1, pros::E_CONTROLLER_DIGITAL_L2);
 #endif

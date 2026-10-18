@@ -5,10 +5,11 @@
 #include "Subsystems/Lift.h"
 #include "pros/misc.h"
 
-//one macro: pressing `button` moves the lift to `target_deg`(getAngle() units, see LiftPos in Lift.h)
+//one macro: pressing `button` runs `move`(a lift.moveTo(...) built in main.cpp, positions are in LiftPos in Lift.h).
+//The move is built by the caller since this file is in the cold library and can't link against hot code like Lift::moveTo
 struct LiftBind {
     pros::controller_digital_e_t button;
-    double target_deg;
+    Command* move;
 };
 
 class LiftTeleopCommand : public Command{
