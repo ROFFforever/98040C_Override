@@ -33,8 +33,10 @@ float sideAngleDeg(WallSensor::Side side){
 std::string WallLocalization::config_json(){
     std::string out = std::format(
         "\"wallMaxCardinalDeg\": {:.1f}, \"wallCornerLimit\": {:.1f}, \"wallBiasRate\": {:.3f}, "
-        "\"wallBaseGate\": {:.2f}, \"wallDriftFraction\": {:.3f}, \"wallMaxGate\": {:.2f}, \"wallSensors\": {{",
-        kMaxCardinalDeviation, kCornerLimit, kDefaultBiasRate, baseGate, driftFraction, maxGate);
+        "\"wallBaseGate\": {:.2f}, \"wallDriftFraction\": {:.3f}, \"wallMaxGate\": {:.2f}, "
+        "\"wallConfMin\": {}, \"wallSizeMin\": {}, \"wallSizeMax\": {}, \"wallSensors\": {{",
+        kMaxCardinalDeviation, kCornerLimit, kDefaultBiasRate, baseGate, driftFraction, maxGate,
+        WallSensor::kMinConfidence, WallSensor::kMinObjectSize, WallSensor::kMaxObjectSize);
     bool first = true;
     for(WallSensor* s : sensors){
         if(s == nullptr) continue;
