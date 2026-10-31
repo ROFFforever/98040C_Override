@@ -36,6 +36,7 @@
 #include "Commands/Tuning/AngularCharacterize.h"
 #include "Commands/TeleopCommands/PistonTeleopCommand.h"
 #include "Subsystems/WallSensor.h"
+#include "util/OdomScreen.h"
 #include "Commands/Localization/WallLocalization.h"
 
 
@@ -48,13 +49,13 @@
 bool wall_enabled=true;
 
 #ifdef ROBOT_MAIN
-pros::MotorGroup leftMotors({11,5,4});   // port numbers; negative = reversed
-pros::MotorGroup rightMotors({12,-7,6});
-pros::Imu imu(4);
-pros::Rotation vertRotation(6); //reverse angle
-pros::Rotation horizRotation(3); //reverse angle
-odom_wheel vert(&vertRotation, -0.875, 2.125);
-odom_wheel horiz(nullptr, 0.75, 2.125);
+pros::MotorGroup leftMotors({2, -1, -3});   // port numbers; negative = reversed
+pros::MotorGroup rightMotors({8, -9, 10});
+pros::Imu imu(17);
+pros::Rotation vertRotation(15); //reverse angle
+pros::Rotation horizRotation(14); //reverse angle
+odom_wheel vert(&vertRotation, -0.875, 2.02);
+odom_wheel horiz(&horizRotation, 0.75, 2.75);
 
 //controllers
 PID residual_lateral_PID(0.95 * 1000,0,26*100,0,0);
@@ -72,7 +73,7 @@ velocity_feed_forward ff_angular(0.931 *1000,  // kV
 
 
 #ifdef HAS_LIFT
-pros::Motor lift_1(1);
+pros::Motor lift_1(16);
 //TODO TUNE: placeholder gains. Error is in degrees, output is mV. Add &lift_rotation as the 3rd Lift arg once the rotation sensor is installed
 PID lift_pid(1200, 0, 0, 0, 0);
 Lift lift({{&lift_1, false}}, &lift_pid);
@@ -120,8 +121,10 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 //lift macros: one button per position
 LiftTeleopCommand liftTeleop(&lift, &controller, {
 	{pros::E_CONTROLLER_DIGITAL_A, lift.moveTo(LiftPos::DOWN)},
-	{pros::E_CONTROLLER_DIGITAL_B, lift.moveTo(LiftPos::FIRST_CONE)},
-	{pros::E_CONTROLLER_DIGITAL_X, lift.moveTo(LiftPos::SECOND_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_B, lift.moveTo(LiftPos::FIRST_CONE_IN)},
+	{pros::E_CONTROLLER_DIGITAL_X, lift.moveTo(LiftPos::FIRST_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_DOWN, lift.moveTo(LiftPos::SECOND_CONE_IN)},
+	{pros::E_CONTROLLER_DIGITAL_LEFT, lift.moveTo(LiftPos::SECOND_CONE)},
 });
 //claw macros: one button per position
 ClawTeleopCommand clawTeleop(&claw, &controller, {
@@ -153,6 +156,7 @@ WallSensor right_wall_sensor(4, -2.625f, 5.80f,  WallSensor::Side::RIGHT);
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
 WallLocalization wallLocalization({&back_wall_sensor, &left_wall_sensor, &front_wall_sensor, &right_wall_sensor}, &chassis);
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
+OdomScreen odomScreen(&chassis); // x/y/heading + raw odom wheels on the brain screen
 
 //logs tuning values so run analysis knows what this build used. add new tuning values here too
 void logRobotConfig(){
@@ -238,7 +242,7 @@ void initialize() {
 	printf("RUN_ID:%d\n", runId);
 	fflush(stdout);
 
-	pros::lcd::initialize();
+	odomScreen.start(); //replaces the old pros::lcd screen
 
 	//Sets mode to SD card based logging. It's enables faster writes, is more reliable, and is persistent 
 	//compared to wireless logging
@@ -253,7 +257,6 @@ void initialize() {
 	vert.odom_sensor == nullptr ? 0: vertRotation.set_position(0);
 	horiz.odom_sensor == nullptr ? 0 : horizRotation.set_position(0);
 	
-	pros::lcd::set_text(1, "Hello PROS User!");
 
 	// Blocks ~2s while the IMU's gyro/accel finish their startup calibration,
 	// waits until sensor ready basically before feeding ODOM calculations etc.
@@ -341,7 +344,8 @@ void autonomous() {
 	}
 
 #ifdef HAS_LIFT
-	lift.moveTo(LiftPos::SECOND_CONE)->schedule();
+	// lift.moveTo(LiftPos::SECOND_CONE)->schedule();
+	claw.moveTo(-100)->schedule();
 #else
 	// wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::PosXNegY); //reset pose once at beginning
 	//nothing here since test bot no have any formal auton
@@ -394,8 +398,8 @@ void opcontrol() {
 	// One combined test (slow ramp + hard bursts), one joint kS/kV/kA fit -
 	// see Commands/Tuning/DriveCharacterize. Replaces the old two-pass
 	// quasistatic-then-residual-kA workflow.
-	// DriveCharacterize kav(&chassis);
-	// CommandScheduler::schedule(&kav);
+	DriveCharacterize kav(&chassis);
+	CommandScheduler::schedule(&kav);
 
 	// CameraCharacterize cameraKav(&chassis);
 	// CommandScheduler::schedule(&cameraKav);

@@ -9,8 +9,10 @@
 //named lift positions(getAngle() units). Pass these to Lift::moveTo
 namespace LiftPos {
     constexpr double DOWN = 0;
-    constexpr double FIRST_CONE = -1200;
-    constexpr double SECOND_CONE = -1900;
+    constexpr double FIRST_CONE_IN = -1200;
+    constexpr double FIRST_CONE = -1600;
+    constexpr double SECOND_CONE_IN = -2000;
+    constexpr double SECOND_CONE = -2400;
 }
 
 class Lift : public Motors{
@@ -19,6 +21,7 @@ class Lift : public Motors{
     PID* pid; //position PID(input = getAngle() units, output = mV)
     pros::Rotation* rotation; //optional. If provided it is used for position instead of the motor encoder
     double last_angle=0; //last good reading, used if the rotation sensor momentarily fails
+    int descent_mV=2000; //TODO TUNE: cap on voltage while moving down(toward LiftPos::DOWN), since gravity is already helping
     bool debug_stream=false;
     uint32_t last_stream_ms=0;
 
@@ -40,6 +43,10 @@ class Lift : public Motors{
 
     //builds a LiftMoveTo for this lift(see Commands/LiftMoveTo.h for the params). Caller schedules it or puts it in a Sequence
     Command* moveTo(double target_deg, double exit_range=Units::AUTO, double max_time=Units::AUTO_TIME, int max_speed=127, int min_speed=0);
+
+    //max speed(0-127) used by moveTo when travelling down. Lower = softer landing
+    void setDescentSpeed(int speed){ descent_mV = (int)(speed * 12000.0 / 127); }
+    int getDescentLimit(){ return descent_mV; }
 
     //if true, prints the lift position over the wireless debug link every 0.5s
     void setDebugStream(bool enabled){ debug_stream = enabled; }

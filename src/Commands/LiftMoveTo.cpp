@@ -44,6 +44,8 @@ void LiftMoveTo::execute(){
     //min speed only matters while still travelling, so it can't push the lift past the target once inside exit_range
     if(abs(out) < min_mV) out = (out < 0 ? -min_mV : min_mV);
     out = std::clamp(out, -max_mV, max_mV);
+    //positions get more negative going up(DOWN = 0), so positive output = descending. Gravity is helping there, so cap it to land softly
+    out = std::min(out, lift->getDescentLimit());
     lift->spin(out);
 }
 

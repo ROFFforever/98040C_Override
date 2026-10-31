@@ -4,8 +4,8 @@
 // Everything else in the project reads HAS_LIFT (below) instead of checking
 // which robot it is directly - so a robot missing a piece of hardware just
 // never has that code compiled in for it. No null checks needed.
-// #define ROBOT_MAIN
-#define ROBOT_TEST
+#define ROBOT_MAIN
+// #define ROBOT_TEST
 
 #if defined(ROBOT_MAIN) && defined(ROBOT_TEST)
     #error "RobotConfig.h: pick only ROBOT_MAIN or ROBOT_TEST, not both."

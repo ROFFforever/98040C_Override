@@ -21,6 +21,6 @@ void auton_1(drivetrain* chassis, WallLocalization* wallLoc){
     await(chassis->swing(42, DriveSide::RIGHT, false, 70, 51, 6));
     await(chassis->moveForward(9.1, false, 60));
     pros::delay(250);
-    await(chassis->moveToPoint(2.6, -57.5));
+    await(chassis->moveToPoint(2.4, -56.4));
     await(chassis->rotate(270));
 }
