@@ -33,5 +33,8 @@ void OdomScreen::draw() {
     pros::screen::print(pros::E_TEXT_MEDIUM, X, TOP + 2 * ROW, "H:     %7.2f deg   ", p.theta * 180.0 / M_PI);
     pros::screen::print(pros::E_TEXT_MEDIUM, X, TOP + 3 * ROW, "Vert:  %7.2f in    ", wheelInches(chassis->vert_odom));
     pros::screen::print(pros::E_TEXT_MEDIUM, X, TOP + 4 * ROW, "Horiz: %7.2f in    ", wheelInches(chassis->horiz_odom));
+    // motor-encoder distance (left/right side), right column - compare against Vert to check wheelRPM
+    pros::screen::print(pros::E_TEXT_MEDIUM, 250, TOP + 3 * ROW, "MotL: %7.2f in    ", chassis->getLeftDistance());
+    pros::screen::print(pros::E_TEXT_MEDIUM, 250, TOP + 4 * ROW, "MotR: %7.2f in    ", chassis->getRightDistance());
     if (liftAngle) pros::screen::print(pros::E_TEXT_MEDIUM, X, TOP + 5 * ROW, "Lift:  %7.1f deg   ", liftAngle());
 }

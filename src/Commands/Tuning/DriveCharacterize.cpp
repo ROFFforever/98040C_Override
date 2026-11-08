@@ -21,7 +21,7 @@ struct PowerStage {
 };
 
 //stretches every stage's duration (power levels unchanged) so the robot gets more time at each speed. 1.0 = original length
-constexpr double DURATION_SCALE = 1.7;
+constexpr double DURATION_SCALE = 1.955; //was 1.7, +15%
 
 const std::vector<PowerStage> STAGES = [] {
   std::vector<PowerStage> stages = {

@@ -16,6 +16,7 @@
 #include <cfenv>
 #include <cstdio>
 #include "Commands/Tuning/DriveCharacterize.h"
+#include "Commands/Tuning/RawDrive.h"
 #include "Commands/Tuning/CameraCharacterize.h"
 #include "Telemetry/telemetry.h"
 #include "Commands/Tuning/FeedForwardTest.h"
@@ -61,9 +62,10 @@ odom_wheel horiz(&horizRotation, 0.75, 2.75); //0.75 back of center, 5/8 left (l
 PID residual_lateral_PID(0.95 * 1000,0,26*100,0,0);
 //PID residual_lateral_PID(0 * 1000,0,0*100,0,0);
 PID angular_pid(26 * 1000.0,0,1457 * 100,0,0);
-velocity_feed_forward ff_lateral( 0.1384 * 1000,  // kV
-                          0.024 * 1000, // kA is 0 because it doens't pull much weight
-                          1.551 * 1000);  // kS
+//avg of kav_trial_2 + kav_trial_3 (new drivetrain, refit from the vert pod). Old: kV 0.1384, kA 0.024, kS 1.551
+velocity_feed_forward ff_lateral( 0.152 * 1000,  // kV
+                          0.010 * 1000, // kA is 0 because it doens't pull much weight
+                          0.39 * 1000);  // kS
 						
 
 
@@ -161,7 +163,7 @@ WallSensor front_wall_sensor(14, -6.076f, 1.25f,  WallSensor::Side::FRONT); //6.
 WallSensor right_wall_sensor(18, -2.184f, 4.916f,  WallSensor::Side::RIGHT); //4.916 right, 2.184 forward of center (CAD)
 
 
-drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
+drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 720, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing //720 measured: motor distance matched the vert pod on a push test + kAV trial 1 (60:36 on 200rpm math gives 333 but reads ~2.1x short)
 WallLocalization wallLocalization({&back_wall_sensor, &left_wall_sensor, &front_wall_sensor, &right_wall_sensor}, &chassis);
 ArcadeDriveCommand arcadeDrive(&chassis, &controller); // drivetrain's default teleop command
 OdomScreen odomScreen(&chassis); // x/y/heading + raw odom wheels on the brain screen
@@ -410,6 +412,11 @@ void opcontrol() {
 	// quasistatic-then-residual-kA workflow.
 	// DriveCharacterize kav(&chassis);
 	// CommandScheduler::schedule(&kav);
+
+	// wheel spin test: prop the robot up so the wheels are off the ground. Spins both sides at 3V for 10s,
+	// count how many times a taped wheel goes around, then compare to MotL/MotR on the screen
+	// RawDrive spinTest(&chassis, 9999, false, 3000, 10000);
+	// spinTest.schedule();
 
 	// CameraCharacterize cameraKav(&chassis);
 	// CommandScheduler::schedule(&cameraKav);
