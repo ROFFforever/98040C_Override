@@ -9,6 +9,8 @@
 
 double settle_range_config = 1.5; //1.5 inches is reasonable
 double heading_lock_distance = 6.0;
+const double kS_kick_deadband = 0.15; //no lateral kS within this many inches of the target
+const double kS_kick_stall_vel = 3.0; //in/s, only kick when the robot is basically stopped
 //time-warp: profile clock speed = 1 - lag/profile_lag_scale, so it pauses once the robot is this many inches behind. 0 = off
 double profile_lag_scale = 6.0;
 
@@ -167,7 +169,10 @@ void tank_motion_profile::execute() {
 
     int mV = dirSign * drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
     int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
-    int fwd = fwd_with_turn_room(mV + sgn(mV) * drive->lateral_kS, turn_mv);
+    //kS kick follows the error sign (sgn(mV) flipped with kD and jiggled), off near the target
+    bool stalled = fabs(drive->get_lateral_velocity()) < kS_kick_stall_vel;
+    int kick = (fabs(lateral_error) < kS_kick_deadband || !stalled) ? 0 : dirSign * drive->lateral_kS * (int)sgn(lateral_error);
+    int fwd = fwd_with_turn_room(mV + kick, turn_mv);
     drive->setVoltageLeft(fwd - turn_mv);
     drive->setVoltageRight(fwd + turn_mv);
 

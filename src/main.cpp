@@ -59,7 +59,7 @@ odom_wheel vert(&vertRotation, -1.125, 2.02); //1 1/8 right of center, 4.5 back 
 odom_wheel horiz(&horizRotation, 0.75, 2.75); //0.75 back of center, 5/8 left (left distance unused)
 
 //controllers
-PID residual_lateral_PID(0.95 * 1000,0,26*100,0,0);
+PID residual_lateral_PID(1.0 * 1000,0,45*100,0,0); //PID tuning run 3 (run_35 P-only 0.95: 2.6in overshoot; run_37 kP 1.0 kD 20: 1.76in overshoot). Was kP 0.95, kD 26 (tuned with the old 1.55V kS)
 //PID residual_lateral_PID(0 * 1000,0,0*100,0,0);
 PID angular_pid(26 * 1000.0,0,1457 * 100,0,0);
 //avg of kav_trial_2 + kav_trial_3 (new drivetrain, refit from the vert pod). Old: kV 0.1384, kA 0.024, kS 1.551
@@ -286,6 +286,7 @@ void initialize() {
 	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
 
 	chassis.angular_kS = 1910;
+	chassis.lateral_kS = 390; //ff_lateral kS, residual push used by LateralPIDTune + tank_motion_profile
 #else
 	chassis.set_speeds_lateral(Speed::SLOW, {50.0, 0.0, 25.0});
 	//was 60/120: FF needed ~11.7V at the top of the ramp (speed_test_14). 55/150 fits under ~11.3V
@@ -431,6 +432,10 @@ void opcontrol() {
 	// AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
 	// angularTune.schedule();
 	//LateralPIDTune lateralTune(&chassis, 36, 10000);
+	//pure PID step (no FF), 36in, 4s window. Tuning channel is only turned on here, logs go to the SD run file
+	TELEMETRY.setEnabled(Telemetry::Channel::Tuning, true);
+	LateralPIDTune lateralTune(&chassis, 36, 4000);
+	lateralTune.schedule();
 
 	// Step-response test for cascade_lift_pid (declared near the other
 	// controllers above, currently 0/0/0 - tune it here). targetDeg is a raw
@@ -442,6 +447,7 @@ void opcontrol() {
 
 	// LateralMotionDiagnostic motionDiag(&chassis, 70, /*usePID=*/true);
 	// motionDiag.schedule();
+
 
 
 	// UP/DOWN = +-1deg, LEFT/RIGHT = +-10deg dial in a rotate() target on the
