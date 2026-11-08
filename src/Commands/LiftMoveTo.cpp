@@ -7,9 +7,11 @@
 const double lift_default_exit_range = 5; //degrees
 const double lift_default_max_time = 3;   //seconds
 
-LiftMoveTo::LiftMoveTo(Lift* lift, double target_deg, double exit_range, double max_time, int max_speed, int min_speed){
+LiftMoveTo::LiftMoveTo(Lift* lift, double target_deg, double exit_range, double max_time, int max_speed, int min_speed, bool relative){
     this->lift=lift;
     this->target_deg=target_deg;
+    this->relative=relative;
+    this->offset_deg=target_deg;
     this->exit_range = (exit_range == Units::AUTO ? lift_default_exit_range : exit_range);
     this->max_time = (max_time == Units::AUTO_TIME ? lift_default_max_time : max_time);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
@@ -20,6 +22,7 @@ void LiftMoveTo::initialize(){
     //reset so this command can be scheduled/run more than once
     finished = false;
     start_time = pros::millis();
+    if(relative) target_deg = lift->getAngle() + offset_deg; //re-resolved on every press
 
     PID* pid = lift->getPID();
     pid->reset(target_deg - lift->getAngle());

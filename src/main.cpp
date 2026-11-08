@@ -51,11 +51,11 @@ bool wall_enabled=true;
 #ifdef ROBOT_MAIN
 pros::MotorGroup leftMotors({2, -1, -3});   // port numbers; negative = reversed
 pros::MotorGroup rightMotors({8, -9, 10});
-pros::Imu imu(17);
-pros::Rotation vertRotation(15); //reverse angle
-pros::Rotation horizRotation(14); //reverse angle
-odom_wheel vert(&vertRotation, -0.875, 2.02);
-odom_wheel horiz(&horizRotation, 0.75, 2.75);
+pros::Imu imu(12);
+pros::Rotation vertRotation(20); //reverse angle
+pros::Rotation horizRotation(11); //reverse angle
+odom_wheel vert(&vertRotation, -1.125, 2.02); //1 1/8 right of center, 4.5 back (back distance unused)
+odom_wheel horiz(&horizRotation, 0.75, 2.75); //0.75 back of center, 5/8 left (left distance unused)
 
 //controllers
 PID residual_lateral_PID(0.95 * 1000,0,26*100,0,0);
@@ -73,12 +73,12 @@ velocity_feed_forward ff_angular(0.931 *1000,  // kV
 
 
 #ifdef HAS_LIFT
-pros::Motor lift_1(16);
+pros::Motor lift_1(21);
 //TODO TUNE: placeholder gains. Error is in degrees, output is mV. Add &lift_rotation as the 3rd Lift arg once the rotation sensor is installed
 PID lift_pid(1200, 0, 0, 0, 0);
 Lift lift({{&lift_1, false}}, &lift_pid);
 
-pros::Motor claw_oc(5);
+pros::Motor claw_oc(7);
 pros::Motor claw_suction(4);
 PID claw_pid(300, 0, 0, 0, 0);               // TODO TUNE
 Claw claw({{&claw_oc, false}}, {{&claw_suction, true}}, &claw_pid);
@@ -118,19 +118,27 @@ velocity_feed_forward ff_angular(0.8995599372169607*1000,  // kV
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
 
 #ifdef HAS_LIFT
-//lift macros: one button per position
-LiftTeleopCommand liftTeleop(&lift, &controller, {
-	{pros::E_CONTROLLER_DIGITAL_A, lift.moveTo(LiftPos::DOWN)},
-	{pros::E_CONTROLLER_DIGITAL_B, lift.moveTo(LiftPos::FIRST_CONE_IN)},
-	{pros::E_CONTROLLER_DIGITAL_X, lift.moveTo(LiftPos::FIRST_CONE)},
-	{pros::E_CONTROLLER_DIGITAL_DOWN, lift.moveTo(LiftPos::SECOND_CONE_IN)},
-	{pros::E_CONTROLLER_DIGITAL_LEFT, lift.moveTo(LiftPos::SECOND_CONE)},
-});
+//the claw and lift macros fire each other, so liftTeleop is declared here and defined below
+extern LiftTeleopCommand liftTeleop;
+Command* lift_to_430 = lift.moveTo(-430); //fired by claw button L1
 //claw macros: one button per position
 ClawTeleopCommand clawTeleop(&claw, &controller, {
-	{pros::E_CONTROLLER_DIGITAL_L1, claw.moveTo(ClawPos::CLOSED), true}, //true = stays braked once closed so the cone stays in place
+	{pros::E_CONTROLLER_DIGITAL_L1, claw.moveTo(ClawPos::CLOSED), true, []{ liftTeleop.trigger(lift_to_430); }, 300}, //true = stays braked once closed so the cone stays in place. Lift starts 300ms after the press
 	{pros::E_CONTROLLER_DIGITAL_L2, claw.moveTo(ClawPos::OPEN)},
-}, pros::E_CONTROLLER_DIGITAL_Y); //Y toggles suction in/off
+}, 50); //suction spins at 50% while closed(L1), stops on open(L2)
+//used by lift button B once its move finishes: opens the claw 30 degrees past wherever it currently is(positive = opens)
+Command* claw_open_small = claw.moveBy(30);
+//lift macros: one button per position
+LiftTeleopCommand liftTeleop(&lift, &controller, {
+	{pros::E_CONTROLLER_DIGITAL_A, lift.moveTo(LiftPos::DOWN), false}, //false = coasts at the bottom instead of holding
+	{pros::E_CONTROLLER_DIGITAL_B, lift.moveBy(500), true, []{ clawTeleop.trigger(claw_open_small, true); }}, //500 down from wherever the lift is(positive = down), then once that finishes opens the claw 30 more and holds it there
+	{pros::E_CONTROLLER_DIGITAL_X, lift.moveTo(-530)},
+	{pros::E_CONTROLLER_DIGITAL_Y, lift.moveTo(LiftPos::FIRST_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_DOWN, lift.moveTo(LiftPos::SECOND_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_LEFT, lift.moveTo(LiftPos::THIRD_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_UP, lift.moveTo(LiftPos::FOURTH_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_RIGHT, lift.moveTo(LiftPos::FIFTH_CONE)},
+});
 #endif
 #ifdef ROBOT_MAIN
 
@@ -139,18 +147,18 @@ ClawTeleopCommand clawTeleop(&claw, &controller, {
 
 //vertOffset was 8.625, then 7.2. 7.2 was measured from the camera's point, which sat ~0.8in behind the odom
 //tracking point (tag profile fixed 10/16). Measured from the odom point it's 7.7-7.8
-WallSensor back_wall_sensor(14, -2.75f, 7.75f,  WallSensor::Side::BACK);
+WallSensor back_wall_sensor(17, -5.627f, -0.131f,  WallSensor::Side::BACK); //5.627 right, 0.131 forward of center
 
 //vertOffset=0.75  horizOffset=7.26
 //vertOffset was 6.875; 5.85 from the camera fit on the 10/16 runs (read ~1in long)
-WallSensor left_wall_sensor(9, 2.25f, 5.85f,  WallSensor::Side::LEFT);
+WallSensor left_wall_sensor(13, 2.814f, 4.968f,  WallSensor::Side::LEFT); //4.968 left, 2.814 forward of center (CAD)
 
 // vertOffset=7.30  horizOffset=1.80
-WallSensor front_wall_sensor(17, 1.80f, 8.1f,  WallSensor::Side::FRONT);
+WallSensor front_wall_sensor(14, -6.076f, 1.25f,  WallSensor::Side::FRONT); //6.076 left, 1.25 forward of center
 
 
 //vertOffset was 6.50; 5.80 from the camera fit on the 10/16 runs (read ~0.7in long)
-WallSensor right_wall_sensor(4, -2.625f, 5.80f,  WallSensor::Side::RIGHT);
+WallSensor right_wall_sensor(18, -2.184f, 4.916f,  WallSensor::Side::RIGHT); //4.916 right, 2.184 forward of center (CAD)
 
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 360, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing
@@ -231,10 +239,12 @@ void initialize() {
 	//not when the program restarts, so without this the 0 point would be wherever it was last left.
 #ifdef HAS_LIFT
 	lift.resetPosition();
-	lift.holdPosition();
+	lift.setHold(false); //starts physically down, so coast like the DOWN macro does. Every other macro holds when it finishes
 	lift.setDebugStream(true); //set true to stream lift position over pros terminal every 0.5s
-	claw.resetPosition(); //claw is started fully open/extended before every match, so that physical position is 0
-	claw.setHold(false); //claw only holds when closed(ClawTeleopCommand switches it), so start coasting
+	claw.resetPosition(ClawPos::START); //claw starts every match holding the initial pins, so that physical position reads 0
+	claw.setHold(true); //holds the initial pins at the start. After a claw macro finishes, ClawTeleopCommand switches it(only closed holds, everything else coasts)
+	claw.brake();
+	odomScreen.setLiftGetter([]{ return lift.getAngle(); }); //shows lift position on the brain screen
 #endif
 
 	int runId = nextRunId();
@@ -398,8 +408,8 @@ void opcontrol() {
 	// One combined test (slow ramp + hard bursts), one joint kS/kV/kA fit -
 	// see Commands/Tuning/DriveCharacterize. Replaces the old two-pass
 	// quasistatic-then-residual-kA workflow.
-	DriveCharacterize kav(&chassis);
-	CommandScheduler::schedule(&kav);
+	// DriveCharacterize kav(&chassis);
+	// CommandScheduler::schedule(&kav);
 
 	// CameraCharacterize cameraKav(&chassis);
 	// CommandScheduler::schedule(&cameraKav);

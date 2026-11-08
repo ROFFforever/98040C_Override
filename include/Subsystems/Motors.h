@@ -36,8 +36,8 @@ class Motors : public Subsystem{
     //stops using the currently configured brake mode - only actually holds position if that mode is HOLD
     void brake();
 
-    //zeros out getPosition() at the motors' current physical position
-    void resetPosition();
+    //makes getPosition() read `position`(default 0) at the motors' current physical position
+    void resetPosition(double position=0);
 
     //if bool is true it will intake, if bool is false, it will outtake
     void max(bool intake=true);

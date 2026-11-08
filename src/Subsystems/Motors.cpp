@@ -61,8 +61,8 @@ void Motors::brake(){
     }
 }
 
-void Motors::resetPosition(){
+void Motors::resetPosition(double position){
     for(MotorConfig motor : motors){
-        motor.motor->tare_position();
+        motor.motor->set_zero_position(motor.reverse ? -position : position); //getPosition() flips reversed motors back
     }
 }

@@ -17,6 +17,10 @@ Command* Lift::moveTo(double target_deg, double exit_range, double max_time, int
     return new LiftMoveTo(this, target_deg, exit_range, max_time, max_speed, min_speed);
 }
 
+Command* Lift::moveBy(double offset_deg, double exit_range, double max_time, int max_speed, int min_speed){
+    return new LiftMoveTo(this, offset_deg, exit_range, max_time, max_speed, min_speed, true);
+}
+
 void Lift::holdPosition(){
     setBrakeMode(pros::E_MOTOR_BRAKE_HOLD);
 }

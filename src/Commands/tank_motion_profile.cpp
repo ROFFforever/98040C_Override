@@ -9,6 +9,8 @@
 
 double settle_range_config = 1.5; //1.5 inches is reasonable
 double heading_lock_distance = 6.0;
+//time-warp: profile clock speed = 1 - lag/profile_lag_scale, so it pauses once the robot is this many inches behind. 0 = off
+double profile_lag_scale = 6.0;
 
 //leave headroom for turn_mv so a side clipping at 12V doesn't eat the heading correction
 static int fwd_with_turn_room(double fwd, int turn_mv) {
@@ -49,6 +51,8 @@ void tank_motion_profile::initialize() {
 
   // get start time
   start_time = pros::millis();
+  last_tick_ms = start_time;
+  profile_t = 0;
 
   //resolve a live goal now(using current pose) instead of whatever was true when this command was constructed
   if(target_supplier){
@@ -91,13 +95,14 @@ void tank_motion_profile::initialize() {
   max_time = max_time == Units::AUTO_TIME ? motion->totalTime() + 1.5 : max_time;
 
   TELEMETRY.send(Telemetry::Channel::Debug, std::format(
-    "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"profile\", \"x\": {:.3f}, \"y\": {:.3f}, \"start_x\": {:.3f}, \"start_y\": {:.3f}, \"dist\": {:.3f}, \"backwards\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"cruise_vel\": {:.1f}, \"accel\": {:.1f}, \"init_vel\": {:.1f}, \"final_vel\": {:.1f}, \"profile_time\": {:.3f}, \"max_time\": {:.2f}, \"min_speed\": {:.1f}}}\n",
-    start_time, x, y, startX, startY, dist, backwards, early_exit_range, settle_range, constraints.cruise_vel, constraints.accel, constraints.init_vel, constraints.final_vel, motion->totalTime(), max_time, min_speed));
+    "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"profile\", \"x\": {:.3f}, \"y\": {:.3f}, \"start_x\": {:.3f}, \"start_y\": {:.3f}, \"dist\": {:.3f}, \"backwards\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"cruise_vel\": {:.1f}, \"accel\": {:.1f}, \"init_vel\": {:.1f}, \"final_vel\": {:.1f}, \"profile_time\": {:.3f}, \"max_time\": {:.2f}, \"min_speed\": {:.1f}, \"lag_scale\": {:.1f}}}\n",
+    start_time, x, y, startX, startY, dist, backwards, early_exit_range, settle_range, constraints.cruise_vel, constraints.accel, constraints.init_vel, constraints.final_vel, motion->totalTime(), max_time, min_speed, profile_lag_scale));
 }
 
 void tank_motion_profile::execute() {
-  double curr_time = ((pros::millis() - start_time) / 1000.0);
-  if (curr_time > max_time) {
+  double now_ms = pros::millis();
+  double curr_time = ((now_ms - start_time) / 1000.0);
+  if (curr_time > max_time) { //timeout stays on real time
     finished = true;
     drive->set(0);
     return;
@@ -105,13 +110,22 @@ void tank_motion_profile::execute() {
 
   //get current vars
   double heading = drive->gpos().theta;
-  auto result = motion->calculate(curr_time);
+  auto result = motion->calculate(profile_t);
 
   //get current position so we can use for residual PID - project live pose onto
   //the start->goal line instead of using distance-to-goal, so this stays correct
   //(and signed) even if the robot overshoots the target
   Pose nowPos = drive->gpos();
   double curr_pos = (nowPos.x - startX) * dirX + (nowPos.y - startY) * dirY;
+
+  //advance the profile clock for next tick, slowed by how far the robot is behind the plan
+  double clock_rate = 1.0;
+  if (profile_lag_scale > 0 && result.has_value()) {
+    double lag = result.value().position - curr_pos;
+    clock_rate = std::clamp(1.0 - lag / profile_lag_scale, 0.0, 1.0);
+  }
+  profile_t += (now_ms - last_tick_ms) / 1000.0 * clock_rate;
+  last_tick_ms = now_ms;
   double lateral_error = motion->getDist() - curr_pos;
 
   if (fabs(lateral_error) > heading_lock_distance) {

@@ -24,6 +24,10 @@ class tank_motion_profile : public Command{
         //start_time stored in millis to make life easier
         double start_time;
 
+        //profile clock(seconds) - runs slower than real time while the robot lags behind the plan
+        double profile_t = 0;
+        double last_tick_ms = 0;
+
         //start pose and unit direction (start->goal), fixed for the whole move -
         //lets us project live position onto the intended line instead of using
         //remaining distance-to-goal, which isn't monotonic once you overshoot

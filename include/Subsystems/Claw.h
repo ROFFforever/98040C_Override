@@ -8,6 +8,7 @@
 //named claw positions(getAngle() units = open/close motor degrees). Pass these to Claw::moveTo
 namespace ClawPos {
     constexpr double CLOSED = -200;
+    constexpr double START = 0; //where the claw physically sits at the start of a match(holding the initial pins). resetPosition(START) in initialize()
     constexpr double OPEN = 0; //TODO TUNE: placeholder
 }
 
@@ -28,8 +29,8 @@ class Claw : public Motors{
     //claw position in motor degrees(first open/close motor's encoder)
     double getAngle();
 
-    //zeros out getAngle() at the claw's current physical position
-    void resetPosition();
+    //makes getAngle() read `position`(default 0) at the claw's current physical position
+    void resetPosition(double position=0);
 
     PID* getPID(){ return pid; }
 
@@ -41,6 +42,9 @@ class Claw : public Motors{
 
     //builds a ClawMoveTo for this claw(see Commands/ClawMoveTo.h for the params). Caller schedules it or puts it in a Sequence
     Command* moveTo(double target_deg, double exit_range=Units::AUTO, double max_time=Units::AUTO_TIME, int max_speed=127, int min_speed=0);
+
+    //like moveTo, but offset_deg is added to the claw's position each time the move starts(positive = opens). Same params as moveTo
+    Command* moveBy(double offset_deg, double exit_range=Units::AUTO, double max_time=Units::AUTO_TIME, int max_speed=127, int min_speed=0);
 
     //suction on/off. Positive voltage = pulls in, negative = pushes out(mV, clamped to +-12000)
     void spinSuction(int voltage){ suction.spin(voltage); }

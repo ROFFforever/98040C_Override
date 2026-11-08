@@ -20,12 +20,24 @@ struct PowerStage {
   uint32_t breakDurationMs = 1000;
 };
 
-const std::vector<PowerStage> STAGES = {
+//stretches every stage's duration (power levels unchanged) so the robot gets more time at each speed. 1.0 = original length
+constexpr double DURATION_SCALE = 1.7;
+
+const std::vector<PowerStage> STAGES = [] {
+  std::vector<PowerStage> stages = {
+    //robot is front-heavy and tips on hard reversals, so each direction change now gets a settle break
+    //(breakBefore) and the reverse peak is 0.5 instead of 0.7. The -0.5 stage is 1300ms (not 800) so the reverse
+    //travels about as far as the forward half (estimated from a simple motor model, not yet checked on the robot)
     {0.5, 500, true}, {0.7, 600, false}, {0.2, 600, false}, {0.0, 300, false},
-    {-0.7, 800, false}, {-0.2, 800, false}, {0.0, 300, false},
-    {0.5, 500, false}, {0.7, 600, false}, {0.2, 600, false}, {0.0, 300, false},
-    {-0.7, 800, false}, {-0.2, 800, false}, {0.0, 300, false},
-};
+    {-0.5, 1300, true}, {-0.2, 800, false}, {0.0, 300, false},
+    {0.5, 500, true}, {0.7, 600, false}, {0.2, 600, false}, {0.0, 300, false},
+    {-0.5, 1300, true}, {-0.2, 800, false}, {0.0, 300, false},
+  };
+  for (PowerStage &stage : stages) {
+    stage.durationMs = (uint32_t)(stage.durationMs * DURATION_SCALE);
+  }
+  return stages;
+}();
 
 uint32_t totalStageDuration(const std::vector<PowerStage> &stages) {
   uint32_t total = 0;
@@ -104,7 +116,10 @@ void DriveCharacterize::gather_tick_data() {
   // velocity signal instead of a 5-tick window on top of it, now that
   // get_lateral_velocity() itself is a direct single-sensor reading rather
   // than a smoothed multi-tick signal.
-  double acceleration = vals.empty() ? 0 : (velocity - vals.back()[0]) * 100.0;
+  // Differenced 2 ticks apart (20 ms), not 1: velocity only changes every other
+  // tick (rotation sensor updates every ~20 ms), so a 1-tick difference reads 0
+  // then 2a. See drivetrain.h.
+  double acceleration = vals.size() < 2 ? 0 : (velocity - vals[vals.size() - 2][0]) * 50.0;
   double voltage = drive->get_voltage_all();
   vals.push_back({velocity, acceleration, voltage});
 }

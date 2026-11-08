@@ -29,6 +29,8 @@ class WallSensor : public Subsystem {
 
     //Horizontal offset is positive if it's right from robot center.
     //Vertical offset is always positive
+    //(both are in the sensor's frame, looking out along the beam: horiz + = right of the beam,
+    // vert = distance along the beam, negative if the sensor sits behind center in its beam direction)
     float horizOffset;
     float vertOffset;
     const Side side;

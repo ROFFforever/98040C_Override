@@ -17,6 +17,10 @@ Command* Claw::moveTo(double target_deg, double exit_range, double max_time, int
     return new ClawMoveTo(this, target_deg, exit_range, max_time, max_speed, min_speed);
 }
 
+Command* Claw::moveBy(double offset_deg, double exit_range, double max_time, int max_speed, int min_speed){
+    return new ClawMoveTo(this, offset_deg, exit_range, max_time, max_speed, min_speed, true);
+}
+
 void Claw::holdPosition(){
     setBrakeMode(pros::E_MOTOR_BRAKE_HOLD);
 }
@@ -25,6 +29,6 @@ double Claw::getAngle(){
     return getPosition();
 }
 
-void Claw::resetPosition(){
-    Motors::resetPosition();
+void Claw::resetPosition(double position){
+    Motors::resetPosition(position);
 }

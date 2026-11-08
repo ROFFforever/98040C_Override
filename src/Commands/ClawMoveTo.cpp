@@ -7,9 +7,11 @@
 const double claw_default_exit_range = 5; //degrees
 const double claw_default_max_time = 2;   //seconds
 
-ClawMoveTo::ClawMoveTo(Claw* claw, double target_deg, double exit_range, double max_time, int max_speed, int min_speed){
+ClawMoveTo::ClawMoveTo(Claw* claw, double target_deg, double exit_range, double max_time, int max_speed, int min_speed, bool relative){
     this->claw=claw;
     this->target_deg=target_deg;
+    this->offset_deg=target_deg;
+    this->relative=relative;
     this->exit_range = (exit_range == Units::AUTO ? claw_default_exit_range : exit_range);
     this->max_time = (max_time == Units::AUTO_TIME ? claw_default_max_time : max_time);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
@@ -20,6 +22,7 @@ void ClawMoveTo::initialize(){
     //reset so this command can be scheduled/run more than once
     finished = false;
     start_time = pros::millis();
+    if(relative) target_deg = claw->getAngle() + offset_deg; //re-resolved on every press
 
     PID* pid = claw->getPID();
     pid->reset(target_deg - claw->getAngle());
