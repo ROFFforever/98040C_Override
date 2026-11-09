@@ -149,14 +149,16 @@ LiftTeleopCommand liftTeleop(&lift, &controller, {
 
 //vertOffset was 8.625, then 7.2. 7.2 was measured from the camera's point, which sat ~0.8in behind the odom
 //tracking point (tag profile fixed 10/16). Measured from the odom point it's 7.7-7.8
-WallSensor back_wall_sensor(17, -5.627f, -0.131f,  WallSensor::Side::BACK); //5.627 right, 0.131 forward of center
+//sensor's measuring point sits 5/8in further toward robot center than CAD says, so every vertOffset moves 5/8in inward
+constexpr float kWallZeroInset = 0.625f;
+WallSensor back_wall_sensor(17, -5.627f, -0.131f - kWallZeroInset,  WallSensor::Side::BACK); //5.627 right, 0.131 forward of center
 
 //vertOffset=0.75  horizOffset=7.26
 //vertOffset was 6.875; 5.85 from the camera fit on the 10/16 runs (read ~1in long)
-WallSensor left_wall_sensor(13, 2.814f, 4.968f,  WallSensor::Side::LEFT); //4.968 left, 2.814 forward of center (CAD)
+WallSensor left_wall_sensor(13, 2.814f, 4.968f - kWallZeroInset,  WallSensor::Side::LEFT); //4.968 left, 2.814 forward of center (CAD)
 
 // vertOffset=7.30  horizOffset=1.80
-WallSensor front_wall_sensor(14, -6.076f, 1.25f,  WallSensor::Side::FRONT); //6.076 left, 1.25 forward of center
+WallSensor front_wall_sensor(14, -6.076f, 1.25f - kWallZeroInset,  WallSensor::Side::FRONT); //6.076 left, 1.25 forward of center
 
 
 //vertOffset was 6.50; 5.80 from the camera fit on the 10/16 runs (read ~0.7in long)
@@ -430,9 +432,9 @@ void opcontrol() {
 
 
 	//Tuning channel is only turned on here, logs go to the SD run file
-	TELEMETRY.setEnabled(Telemetry::Channel::Tuning, true);
-	AngularPIDTune angularTune(&chassis, 150.0, 2500, 9000); // 150° step, 2.5s window, 9V cap (run_64/66 hopped at 12V)
-	angularTune.schedule();
+	// TELEMETRY.setEnabled(Telemetry::Channel::Tuning, true);
+	// AngularPIDTune angularTune(&chassis, 150.0, 2500, 9000); // 150° step, 2.5s window, 9V cap (run_64/66 hopped at 12V)
+	// angularTune.schedule();
 	//LateralPIDTune lateralTune(&chassis, 36, 10000);
 	//pure PID step (no FF), 36in, 4s window
 	// LateralPIDTune lateralTune(&chassis, 36, 4000);
@@ -472,6 +474,17 @@ void opcontrol() {
 		counter++;
 
 		if(counter == 10){
+		//fixed 10hz stream of every wall sensor (raw, unfiltered, no gates) + odom pose, to compare against tape-measured position
+		Pose p = chassis.gpos();
+		float thetaDeg = radToDeg(p.theta);
+		for(WallSensor* s : {&back_wall_sensor, &left_wall_sensor, &front_wall_sensor, &right_wall_sensor}){
+			double wallDist = wallLocalization.get_dist_from_wall(s->side, thetaDeg);
+			TELEMETRY.send(Telemetry::Channel::WallLocalization, std::format(
+				"{{\"t\": {}, \"event\": \"wall_stream\", \"side\": \"{}\", \"dist\": {:.3f}, \"distFromWall\": {:.3f}, "
+				"\"confidence\": {}, \"objectSize\": {}, \"x\": {:.3f}, \"y\": {:.3f}, \"theta\": {:.2f}}}\n",
+				pros::millis(), (int)s->side, s->getDist(), wallDist, s->getConfidence(), s->getObjectSize(),
+				p.x, p.y, thetaDeg));
+		}
 		// double theta = radToDeg(chassis.gpos().theta);
         // double d = wallLocalization.get_dist_from_wall(WallSensor::Side::RIGHT, radToDeg(chassis.gpos().theta));
         // TELEMETRY.debugWireless(std::format("theta: {:.1f}  dist_from_wall: {:.2f}", theta, d));
