@@ -61,7 +61,7 @@ odom_wheel horiz(&horizRotation, 0.75, 2.75); //0.75 back of center, 5/8 left (l
 //controllers
 PID residual_lateral_PID(1.0 * 1000,0,45*100,0,0); //PID tuning run 3 (run_35 P-only 0.95: 2.6in overshoot; run_37 kP 1.0 kD 20: 1.76in overshoot). Was kP 0.95, kD 26 (tuned with the old 1.55V kS)
 //PID residual_lateral_PID(0 * 1000,0,0*100,0,0);
-PID angular_pid(26 * 1000.0,0,1457 * 100,0,0);
+PID angular_pid(26 * 1000.0,0,1800 * 100,0,0); //angular tuning (run_50 P-only: 31deg overshoot, 5 swings). Was kP 26, kD 1457
 //avg of kav_trial_2 + kav_trial_3 (new drivetrain, refit from the vert pod). Old: kV 0.1384, kA 0.024, kS 1.551
 velocity_feed_forward ff_lateral( 0.152 * 1000,  // kV
                           0.010 * 1000, // kA is 0 because it doens't pull much weight
@@ -285,7 +285,7 @@ void initialize() {
 	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 75.0}); // cruise_vel, final_vel, accel
 	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
 
-	chassis.angular_kS = 1910;
+	chassis.angular_kS = 700; //stall kick, run_57 stuck at 0.45deg with 400 kick + 200 P. Was 1910 (old drivetrain)
 	chassis.lateral_kS = 390; //ff_lateral kS, residual push used by LateralPIDTune + tank_motion_profile
 #else
 	chassis.set_speeds_lateral(Speed::SLOW, {50.0, 0.0, 25.0});
@@ -429,13 +429,14 @@ void opcontrol() {
 	// CommandScheduler::schedule(&ff_test);
 
 
-	// AngularPIDTune angularTune(&chassis, 90.0, 2500); // 45° step, 2.5s window
-	// angularTune.schedule();
-	//LateralPIDTune lateralTune(&chassis, 36, 10000);
-	//pure PID step (no FF), 36in, 4s window. Tuning channel is only turned on here, logs go to the SD run file
+	//Tuning channel is only turned on here, logs go to the SD run file
 	TELEMETRY.setEnabled(Telemetry::Channel::Tuning, true);
-	LateralPIDTune lateralTune(&chassis, 36, 4000);
-	lateralTune.schedule();
+	AngularPIDTune angularTune(&chassis, 150.0, 2500, 9000); // 150° step, 2.5s window, 9V cap (run_64/66 hopped at 12V)
+	angularTune.schedule();
+	//LateralPIDTune lateralTune(&chassis, 36, 10000);
+	//pure PID step (no FF), 36in, 4s window
+	// LateralPIDTune lateralTune(&chassis, 36, 4000);
+	// lateralTune.schedule();
 
 	// Step-response test for cascade_lift_pid (declared near the other
 	// controllers above, currently 0/0/0 - tune it here). targetDeg is a raw

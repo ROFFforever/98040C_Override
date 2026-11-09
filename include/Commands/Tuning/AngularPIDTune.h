@@ -12,14 +12,16 @@ class AngularPIDTune : public Command {
     drivetrain* drive = nullptr;
     double stepDeg;
     uint32_t testTimeMs;
+    int maxMV; //output cap, same job as Rotate's max_speed
     double targetHeading = 0;
     double startHeading = 0;
+    double startX = 0, startY = 0;
     Timer* time = nullptr;
-    std::string logBuffer;
+    uint32_t lastSendMs = 0;
 
     public:
-    AngularPIDTune(drivetrain* drive, double stepDeg, uint32_t testTimeMs = 3000) :
-        drive(drive), stepDeg(stepDeg), testTimeMs(testTimeMs) {};
+    AngularPIDTune(drivetrain* drive, double stepDeg, uint32_t testTimeMs = 3000, int maxMV = 12000) :
+        drive(drive), stepDeg(stepDeg), testTimeMs(testTimeMs), maxMV(maxMV) {};
 
     void initialize() override;
     void execute() override;

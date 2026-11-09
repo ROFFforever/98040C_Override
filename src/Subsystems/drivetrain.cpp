@@ -230,8 +230,8 @@ void drivetrain::update_velocities(){
 
     // Gyro rate is angular velocity as the sensor's native physical quantity -
     // reading it directly needs no differentiation at all, unlike deriving it
-    // from tracked heading. Negated to match getAngle()'s CCW-positive flip.
-    lastAngularVel = imu != nullptr ? -degToRad(imu->get_gyro_rate().z) : 0;
+    // from tracked heading. gyro z is already CCW-positive (run_50: negating it read backwards vs getAngle())
+    lastAngularVel = imu != nullptr ? degToRad(imu->get_gyro_rate().z) : 0;
 }
 
 void drivetrain::setPose(double x, double y, double theta){

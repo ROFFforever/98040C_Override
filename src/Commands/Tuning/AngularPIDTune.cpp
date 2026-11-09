@@ -2,33 +2,53 @@
 #include "Telemetry/telemetry.h"
 #include "util/mathUtils.h"
 #include <format>
+#include <algorithm>
+
+namespace {
+constexpr uint32_t kSendPeriodMs = 20; // 50Hz, same as LateralPIDTune (streams to the SD card)
+constexpr double kKickDeadbandRad = 0.0034907; // 0.2 degree, was 1 deg but run_54-56 stalled 0.4-0.8 deg short (inside it)
+constexpr double kKickStallVel = 0.0872665; // 5 deg/s, only kick once stalled (same idea as LateralPIDTune)
+}
 
 void AngularPIDTune::initialize() {
   drive->residual_angular_pid->reset();
-  startHeading = drive->gpos().theta;
+  Pose start = drive->gpos();
+  startHeading = start.theta;
+  startX = start.x;
+  startY = start.y;
   targetHeading = startHeading + degToRad(stepDeg);
   drive->residual_angular_pid->set_target(targetHeading);
   time = new Timer(testTimeMs);
-  logBuffer.clear();
-  logBuffer.reserve(testTimeMs * 12);
+  lastSendMs = 0;
+
+  //header line so each run says which gains it was tested with
+  auto pid = drive->residual_angular_pid->get_consts();
+  TELEMETRY.send(Telemetry::Channel::Tuning, std::format(
+      "{{\"pidTuneStart\": true, \"kind\": \"angular\", \"stepDeg\": {}, \"kP\": {}, \"kI\": {}, \"kD\": {}, \"kS\": {}, \"maxMV\": {}}}\n",
+      stepDeg, pid[0], pid[1], pid[2], drive->angular_kS, maxMV));
 }
 
 void AngularPIDTune::execute() {
-  double heading = drive->gpos().theta;
+  Pose now = drive->gpos();
+  double heading = now.theta;
   int mV = drive->residual_angular_pid->update(heading);
 
-  constexpr double kKickDeadbandRad = 0.0174533; // ~1 degree - stop kicking once this close, let PID alone settle
-  constexpr double kKickScale = 0.4; // fraction of measured kS to actually apply - full kS overshoots the last bit of error
   bool nearTarget = fabs(targetHeading - heading) < kKickDeadbandRad;
-  int kick = nearTarget ? 0 : (int)(drive->angular_kS * kKickScale) * (int)sgn(targetHeading - heading);
+  bool stalled = fabs(drive->get_angular_velocity()) < kKickStallVel;
+  int kick = (nearTarget || !stalled) ? 0 : drive->angular_kS * (int)sgn(targetHeading - heading);
 
-  drive->setVoltageLeft(-mV - kick);
-  drive->setVoltageRight(mV + kick);
+  int out = std::clamp(mV + kick, -maxMV, maxMV);
+  drive->setVoltageLeft(-out);
+  drive->setVoltageRight(out);
 
-  logBuffer += std::format(
-      "{{\"t\": {}, \"targetDeg\": {}, \"headingDeg\": {}, \"errorDeg\": {}, \"mV\": {}}}\n",
-      time->getTimePassed(), radToDeg(targetHeading), radToDeg(heading),
-      radToDeg(targetHeading - heading), mV);
+  uint32_t nowMs = time->getTimePassed();
+  if (nowMs - lastSendMs >= kSendPeriodMs) {
+    lastSendMs = nowMs;
+    TELEMETRY.send(Telemetry::Channel::Tuning, std::format(
+        "{{\"t\": {}, \"targetDeg\": {}, \"headingDeg\": {}, \"errorDeg\": {}, \"mV\": {}, \"kick\": {}, \"velDps\": {}, \"dx\": {:.2f}, \"dy\": {:.2f}}}\n",
+        nowMs, radToDeg(targetHeading), radToDeg(heading),
+        radToDeg(targetHeading - heading), mV, kick, radToDeg(drive->get_angular_velocity()), now.x - startX, now.y - startY));
+  }
 }
 
 bool AngularPIDTune::isFinished() {
@@ -37,8 +57,6 @@ bool AngularPIDTune::isFinished() {
 
 void AngularPIDTune::end(bool interrupted) {
   drive->set(0);
-  TELEMETRY.send(Telemetry::Channel::Tuning, logBuffer);
-  logBuffer.clear();
   double finalHeading = drive->gpos().theta;
   TELEMETRY.sendWireless(std::format(
       "{{\"targetDeg\": {}, \"finalHeadingDeg\": {}, \"errorDeg\": {}}}\n",
