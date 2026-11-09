@@ -92,10 +92,11 @@ void Swing::execute(){
 
     int mV = drive->residual_angular_pid->update(angle_turned);
 
-    constexpr double kKickDeadbandRad = 0.0174533;
-    constexpr double kKickScale = 0.8;
+    constexpr double kKickDeadbandRad = 0.0034907; // 0.2 degree, was 1 deg but the robot stalled 0.4-0.8 deg short inside it (AngularPIDTune run_54-56)
+    constexpr double kKickStallVel = 0.0872665; // 5 deg/s, only kick once stalled, same as AngularPIDTune
     bool nearTarget = fabs(angError) < kKickDeadbandRad;
-    int kick = nearTarget ? 0 : (int)(drive->angular_kS * kKickScale) * (int)sgn(angError);
+    bool stalled = fabs(drive->get_angular_velocity()) < kKickStallVel;
+    int kick = (nearTarget || !stalled) ? 0 : drive->angular_kS * (int)sgn(angError);
 
     int out = mV + kick;
     //min speed floor: never let the PID taper below min_mV(keeps swinging toward the target)

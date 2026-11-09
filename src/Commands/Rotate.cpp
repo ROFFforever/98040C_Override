@@ -5,7 +5,7 @@
 #include <format>
 #include "Telemetry/telemetry.h"
 
-const double settle_range_config = degToRad(5); //should be a good balance of speed and accuracy
+const double settle_range_config = degToRad(1); //was 5, exited mid-swing. AngularPIDTune runs settle within 1 deg by 0.66-0.82s
 const double auto_time_base = 0.5;
 const double auto_time_per_rad = 0.4;
 
@@ -113,10 +113,11 @@ void Rotate::execute(){
 
     int mV = drive->residual_angular_pid->update(angle_turned);
 
-    constexpr double kKickDeadbandRad = 0.0174533; // ~1 degree, stop kicking once this close, let PID alone settle
-    constexpr double kKickScale = 0.8; // fraction of measured kS to actually apply - full kS overshoots the last bit of error
+    constexpr double kKickDeadbandRad = 0.0034907; // 0.2 degree, was 1 deg but the robot stalled 0.4-0.8 deg short inside it (AngularPIDTune run_54-56)
+    constexpr double kKickStallVel = 0.0872665; // 5 deg/s, only kick once stalled, same as AngularPIDTune
     bool nearTarget = fabs(angError) < kKickDeadbandRad;
-    int kick = nearTarget ? 0 : (int)(drive->angular_kS * kKickScale) * (int)sgn(angError);
+    bool stalled = fabs(drive->get_angular_velocity()) < kKickStallVel;
+    int kick = (nearTarget || !stalled) ? 0 : drive->angular_kS * (int)sgn(angError);
 
     int out = mV + kick;
     //min speed floor: never let the PID taper below min_mV(keeps pointing at the target)
