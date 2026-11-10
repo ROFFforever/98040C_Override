@@ -158,11 +158,11 @@ WallSensor back_wall_sensor(17, -5.627f, -0.131f - kWallZeroInset,  WallSensor::
 WallSensor left_wall_sensor(13, 2.814f, 4.968f - kWallZeroInset,  WallSensor::Side::LEFT); //4.968 left, 2.814 forward of center (CAD)
 
 // vertOffset=7.30  horizOffset=1.80
-WallSensor front_wall_sensor(14, -6.076f, 1.25f - kWallZeroInset,  WallSensor::Side::FRONT); //6.076 left, 1.25 forward of center
+WallSensor front_wall_sensor(14, -6.256f, 0.39f,  WallSensor::Side::FRONT); //6.076 left, 1.25 forward of center
 
 
 //vertOffset was 6.50; 5.80 from the camera fit on the 10/16 runs (read ~0.7in long)
-WallSensor right_wall_sensor(18, -2.184f, 4.916f,  WallSensor::Side::RIGHT); //4.916 right, 2.184 forward of center (CAD)
+WallSensor right_wall_sensor(18, -2.512f, 4.182f,  WallSensor::Side::RIGHT); //4.916 right, 2.184 forward of center (CAD)
 
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 720, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing //720 measured: motor distance matched the vert pod on a push test + kAV trial 1 (60:36 on 200rpm math gives 333 but reads ~2.1x short)
