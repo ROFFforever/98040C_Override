@@ -6,6 +6,8 @@
 #include "Subsystems/drivetrain.h"
 #include "Units.h"
 #include <functional>
+#include <vector>
+#include <optional>
 class tank_motion_profile : public Command{
     private:
 
@@ -15,7 +17,11 @@ class tank_motion_profile : public Command{
         //use this when the goal itself depends on live pose(e.g. moveForward's "N inches from wherever I am")
         std::function<Pose()> target_supplier;
         double max_time;
-        TrapezoidProfile* motion; //the actual motion to be ran
+        //the actual motion to be ran. Usually one trapezoid, but slow zones split it into back-to-back pieces(slow, fast, slow)
+        std::vector<TrapezoidProfile*> segments;
+        std::vector<double> segment_start_t; //profile time each segment starts at
+        double total_dist = 0, total_time = 0;
+        std::optional<TrapezoidProfile::State> sample(double t) const; //state of the whole multi-segment profile at time t
         drivetrain* drive;
         MotionParams constraints;
         bool profile_over = false; //whether the profile is over(then hand it off to PID)
@@ -44,10 +50,14 @@ class tank_motion_profile : public Command{
         double min_speed = 0;
         bool chained_exit = false;
 
+        //slow zones: the first slow_start / last slow_end inches are capped at slow_vel(in/s), the middle runs at cruise_vel.
+        //0 = off. Replaces splicing a slow moveForward/moveToPoint onto a fast one, but stays one motion with no hand-off
+        double slow_start = 0, slow_end = 0, slow_vel = 0;
+
     public:
         //min_speed is in inches/sec. 0 = old behavior(decelerate to final_vel, settle, stop)
-        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false, double min_speed=0);
-        tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false, double min_speed=0);
+        tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false, double min_speed=0, double slow_start=0, double slow_end=0, double slow_vel=0);
+        tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range=0, double max_time=Units::AUTO_TIME,double settle_range=Units::AUTO, bool backwards=false, double min_speed=0, double slow_start=0, double slow_end=0, double slow_vel=0);
         void initialize() override;
         void execute() override;
         bool isFinished() override;

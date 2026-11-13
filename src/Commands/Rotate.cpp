@@ -13,6 +13,8 @@ Rotate::Rotate(double target_ang, drivetrain* drive, double early_exit_range, do
     this->target_ang=degToRad(target_ang);
     this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
+    if(drive->residual_angular_pid->get_max_output() > 0) //PID's raw cap also covers the kS kick
+        this->max_mV=std::min(max_mV, (int)drive->residual_angular_pid->get_max_output());
     this->min_mV=std::min((int)(min_speed * 12000.0 / 127), max_mV);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);
@@ -24,6 +26,8 @@ Rotate::Rotate(std::function<double()> target_supplier, drivetrain* drive, doubl
     this->target_supplier = target_supplier;
     this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
+    if(drive->residual_angular_pid->get_max_output() > 0) //PID's raw cap also covers the kS kick
+        this->max_mV=std::min(max_mV, (int)drive->residual_angular_pid->get_max_output());
     this->min_mV=std::min((int)(min_speed * 12000.0 / 127), max_mV);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);

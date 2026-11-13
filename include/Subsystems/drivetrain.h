@@ -170,11 +170,17 @@ class drivetrain : public Subsystem{
     //turn_gate(deg): heading error under this is fixed while driving instead of turning first. 0 = always turn and settle, 15 = old behavior.
     //min_speed(in/s) > 0 turns on motion chaining: the move plans to arrive at that speed and hands off on crossing the target
     //(or early_exit_range before it) with the motors still running; its turn step also keeps spinning instead of tapering. 0 = stop at target.
-    Sequence* moveToPoint(double x, double y, double early_exit_range = 0, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double turn_gate = Units::AUTO, double min_speed = 0);
+    //max_speed(in/s) > 0 caps the drive's cruise velocity below the Speed preset's. 0 = use the preset as-is.
+    Sequence* moveToPoint(double x, double y, double early_exit_range = 0, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double turn_gate = Units::AUTO, double min_speed = 0, double max_speed = 0);
 
     //Drives straight forward/backward `distance` inches relative to current position - no rotate step.
     //Uses Speed::NORMAL's accel/final_vel shape but overrides cruise_vel with maxSpeed (inches/sec).
     tank_motion_profile* moveForward(double distance, bool backwards, double maxSpeed, double early_exit_range = 0, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double min_speed = 0);
+    //Same as moveToPoint / moveForward, but as ONE motion with slow zones instead of splicing a slow move onto a fast one:
+    //the first slow_start inches and the last slow_end inches are capped at slow_speed(in/s), the middle runs at the
+    //normal speed. Either zone can be 0. Robot crosses each zone boundary at slow_speed, so it's already slow when it gets there.
+    Sequence* moveToPointZoned(double x, double y, double slow_start, double slow_end, double slow_speed, double early_exit_range = 0, bool backwards = false, Speed speed = Speed::NORMAL, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double turn_gate = Units::AUTO, double min_speed = 0, double max_speed = 0);
+    tank_motion_profile* moveForwardZoned(double distance, bool backwards, double maxSpeed, double slow_start, double slow_end, double slow_speed, double early_exit_range = 0, double max_time = Units::AUTO_TIME, double settle_range = Units::AUTO, double min_speed = 0);
     void set_speeds_lateral(Speed speed, MotionParams params);
 
 };

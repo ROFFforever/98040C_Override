@@ -20,7 +20,10 @@ static int fwd_with_turn_room(double fwd, int turn_mv) {
   return (int)std::clamp(fwd, -room, room);
 }
 
-tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards, double min_speed) {
+tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards, double min_speed, double slow_start, double slow_end, double slow_vel) {
+  this->slow_start = slow_start;
+  this->slow_end = slow_end;
+  this->slow_vel = slow_vel;
   this->x = x;
   this->y = y;
   this->constraints = constraints;
@@ -33,7 +36,10 @@ tank_motion_profile::tank_motion_profile(drivetrain* drive, double x, double y, 
   this->backwards = backwards;
 }
 
-tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards, double min_speed) {
+tank_motion_profile::tank_motion_profile(drivetrain* drive, std::function<Pose()> target_supplier, MotionParams constraints, double early_exit_range, double max_time, double settle_range, bool backwards, double min_speed, double slow_start, double slow_end, double slow_vel) {
+  this->slow_start = slow_start;
+  this->slow_end = slow_end;
+  this->slow_vel = slow_vel;
   this->target_supplier = target_supplier;
   this->constraints = constraints;
   this->min_speed = min_speed;
@@ -89,16 +95,55 @@ void tank_motion_profile::initialize() {
     constraints.init_vel = drive->get_lateral_velocity() * (backwards ? -1.0 : 1.0);
   }
 
-  motion = new TrapezoidProfile({constraints.cruise_vel, constraints.accel},
-                                 {dist, constraints.final_vel, 0},
-                                 {0, constraints.init_vel, 0});
+  segments.clear();
+  segment_start_t.clear();
+  total_dist = dist;
+  total_time = 0;
+  double a = constraints.accel;
+  bool zoned = slow_vel > 0 && (slow_start > 0 || slow_end > 0) && dist > 1e-6;
+  if (!zoned) {
+    segments.push_back(new TrapezoidProfile({constraints.cruise_vel, a},
+                                            {dist, constraints.final_vel, 0},
+                                            {0, constraints.init_vel, 0}));
+  } else {
+    //split [0, dist] into slow / fast / slow pieces. Zones longer than the move just get clipped
+    double fast_cruise = std::max(constraints.cruise_vel, slow_vel);
+    double s0 = std::clamp(slow_start, 0.0, dist);
+    double s1 = std::clamp(dist - slow_end, s0, dist);
+    struct Piece { double from, to, cruise; };
+    std::vector<Piece> pieces;
+    if (s0 > 1e-6) pieces.push_back({0, s0, slow_vel});
+    if (s1 - s0 > 1e-6) pieces.push_back({s0, s1, fast_cruise});
+    if (dist - s1 > 1e-6) pieces.push_back({s1, dist, slow_vel});
+
+    double v_in = constraints.init_vel;
+    for (size_t i = 0; i < pieces.size(); i++) {
+      Piece pc = pieces[i];
+      bool last = i + 1 == pieces.size();
+      double v_goal = last ? std::min(constraints.final_vel, pc.cruise) : slow_vel; //every boundary is a slow<->fast switch, so it's crossed at slow_vel
+      //keep the goal speed physically reachable in this piece, or the trapezoid math goes negative
+      double len = pc.to - pc.from;
+      double vi = std::clamp(v_in, 0.0, pc.cruise);
+      v_goal = std::min(v_goal, std::sqrt(vi * vi + 2 * a * len));                       //can't speed up that much
+      v_goal = std::max(v_goal, std::sqrt(std::max(0.0, vi * vi - 2 * a * len)));        //can't slow down that much
+      auto* seg = new TrapezoidProfile({pc.cruise, a}, {pc.to, v_goal, 0}, {pc.from, v_in, 0});
+      segment_start_t.push_back(total_time);
+      total_time += seg->totalTime();
+      segments.push_back(seg);
+      v_in = v_goal;
+    }
+  }
+  if (segment_start_t.empty()) { //unzoned: single segment
+    segment_start_t.push_back(0);
+    total_time = segments[0]->totalTime();
+  }
 
   drive->residual_angular_pid->set_target(targetHeading);
-  max_time = max_time == Units::AUTO_TIME ? motion->totalTime() + 1.5 : max_time;
+  max_time = max_time == Units::AUTO_TIME ? total_time + 1.5 : max_time;
 
   TELEMETRY.send(Telemetry::Channel::Debug, std::format(
-    "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"profile\", \"x\": {:.3f}, \"y\": {:.3f}, \"start_x\": {:.3f}, \"start_y\": {:.3f}, \"dist\": {:.3f}, \"backwards\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"cruise_vel\": {:.1f}, \"accel\": {:.1f}, \"init_vel\": {:.1f}, \"final_vel\": {:.1f}, \"profile_time\": {:.3f}, \"max_time\": {:.2f}, \"min_speed\": {:.1f}, \"lag_scale\": {:.1f}}}\n",
-    start_time, x, y, startX, startY, dist, backwards, early_exit_range, settle_range, constraints.cruise_vel, constraints.accel, constraints.init_vel, constraints.final_vel, motion->totalTime(), max_time, min_speed, profile_lag_scale));
+    "{{\"t\": {}, \"event\": \"cmd_start\", \"cmd\": \"profile\", \"x\": {:.3f}, \"y\": {:.3f}, \"start_x\": {:.3f}, \"start_y\": {:.3f}, \"dist\": {:.3f}, \"backwards\": {}, \"early_exit\": {:.2f}, \"settle_range\": {:.2f}, \"cruise_vel\": {:.1f}, \"accel\": {:.1f}, \"init_vel\": {:.1f}, \"final_vel\": {:.1f}, \"profile_time\": {:.3f}, \"max_time\": {:.2f}, \"min_speed\": {:.1f}, \"lag_scale\": {:.1f}, \"slow_start\": {:.1f}, \"slow_end\": {:.1f}, \"slow_vel\": {:.1f}}}\n",
+    start_time, x, y, startX, startY, dist, backwards, early_exit_range, settle_range, constraints.cruise_vel, constraints.accel, constraints.init_vel, constraints.final_vel, total_time, max_time, min_speed, profile_lag_scale, slow_start, slow_end, slow_vel));
 }
 
 void tank_motion_profile::execute() {
@@ -112,7 +157,7 @@ void tank_motion_profile::execute() {
 
   //get current vars
   double heading = drive->gpos().theta;
-  auto result = motion->calculate(profile_t);
+  auto result = sample(profile_t);
 
   //get current position so we can use for residual PID - project live pose onto
   //the start->goal line instead of using distance-to-goal, so this stays correct
@@ -128,7 +173,7 @@ void tank_motion_profile::execute() {
   }
   profile_t += (now_ms - last_tick_ms) / 1000.0 * clock_rate;
   last_tick_ms = now_ms;
-  double lateral_error = motion->getDist() - curr_pos;
+  double lateral_error = total_dist - curr_pos;
 
   if (fabs(lateral_error) > heading_lock_distance) {
     targetHeading = angleDifference(nowPos, x, y) + (backwards ? M_PI : 0.0);
@@ -164,10 +209,10 @@ void tank_motion_profile::execute() {
     }
 
     //reset PID lateral
-    drive->residual_PID_lateral->set_target(motion->getDist()); //just use actual target angle
+    drive->residual_PID_lateral->set_target(total_dist); //just use actual target angle
     drive->residual_angular_pid->set_target(headingError);
 
-    int mV = dirSign * drive->residual_PID_lateral->update(motion->getDist() - lateral_error);
+    int mV = dirSign * drive->residual_PID_lateral->update(total_dist - lateral_error);
     int turn_mv = fabs(lateral_error) < 2.5 ? 0 : drive->residual_angular_pid->update(0);
     //kS kick follows the error sign (sgn(mV) flipped with kD and jiggled), off near the target
     bool stalled = fabs(drive->get_lateral_velocity()) < kS_kick_stall_vel;
@@ -208,7 +253,16 @@ void tank_motion_profile::end(bool interrupted) {
     drive->setVoltageLeft(0);
     drive->setVoltageRight(0);
   }
-  delete motion; //don't want memory leaks
+  for (auto* seg : segments) delete seg; //don't want memory leaks
+  segments.clear();
+}
+
+std::optional<TrapezoidProfile::State> tank_motion_profile::sample(double t) const {
+  //walk back from the last segment to find the one t falls in
+  for (int i = (int)segments.size() - 1; i >= 0; i--) {
+    if (t >= segment_start_t[i]) return segments[i]->calculate(t - segment_start_t[i]);
+  }
+  return std::nullopt;
 }
 
 std::vector<Subsystem*> tank_motion_profile::getRequirements() {

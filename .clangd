@@ -1,10 +1,14 @@
 CompileFlags:
   Add: [
-    "-Iinclude",
-    "-Iinclude/Subsystems",
-    "-Iinclude/CommandScheduler",
-    "-Iinclude/pros",
-    "-Isrc",
+    "-I/Users/brian/dev/robotics/98040C_Override/include",
+    "-I/Users/brian/dev/robotics/98040C_Override/include/Subsystems",
+    "-I/Users/brian/dev/robotics/98040C_Override/include/CommandScheduler",
+    "-I/Users/brian/dev/robotics/98040C_Override/include/pros",
+    "-I/Users/brian/dev/robotics/98040C_Override/src",
+    "-std=gnu++20",
+    "-isystem/Users/brian/.local/toolchains/arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/c++/13.3.1",
+    "-isystem/Users/brian/.local/toolchains/arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/c++/13.3.1/arm-none-eabi/thumb/v7-a+simd/softfp",
+    "-isystem/Users/brian/.local/toolchains/arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include",
     "--target=arm-none-eabi",
     "-mthumb"
   ]

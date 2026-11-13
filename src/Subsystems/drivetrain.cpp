@@ -319,6 +319,10 @@ tank_motion_profile* drivetrain::Tank_motion_profile(double x, double y, double 
 }
 
 tank_motion_profile* drivetrain::moveForward(double distance, bool backwards, double maxSpeed, double early_exit_range, double max_time, double settle_range, double min_speed){
+    return moveForwardZoned(distance, backwards, maxSpeed, 0, 0, 0, early_exit_range, max_time, settle_range, min_speed);
+}
+
+tank_motion_profile* drivetrain::moveForwardZoned(double distance, bool backwards, double maxSpeed, double slow_start, double slow_end, double slow_speed, double early_exit_range, double max_time, double settle_range, double min_speed){
     MotionParams p = get_lateral_params(Speed::NORMAL);
     p.cruise_vel = maxSpeed;
 
@@ -330,7 +334,7 @@ tank_motion_profile* drivetrain::moveForward(double distance, bool backwards, do
         double dir = backwards ? -1.0 : 1.0;
         return Pose(curPos.x + dir * distance * std::cos(curPos.theta),
                     curPos.y + dir * distance * std::sin(curPos.theta));
-    }, p, early_exit_range, max_time, settle_range, backwards, min_speed);
+    }, p, early_exit_range, max_time, settle_range, backwards, min_speed, slow_start, slow_end, slow_speed);
 }
 
 
@@ -351,14 +355,20 @@ constexpr double move_to_point_turn_gate = 30.0; //was 15
 constexpr double move_to_point_turn_early_exit_ratio = 1.0 / 3.0; //turn exits early at gate/3
 constexpr int move_to_point_chained_turn_min_speed = 25; //out of 127, floor for moveToPoint's turn step when min_speed > 0(untested, tune from a run)
 
-Sequence* drivetrain::moveToPoint(double x, double y, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range, double turn_gate, double min_speed){
+Sequence* drivetrain::moveToPoint(double x, double y, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range, double turn_gate, double min_speed, double max_speed){
+    return moveToPointZoned(x, y, 0, 0, 0, early_exit_range, backwards, speed, max_time, settle_range, turn_gate, min_speed, max_speed);
+}
+
+Sequence* drivetrain::moveToPointZoned(double x, double y, double slow_start, double slow_end, double slow_speed, double early_exit_range, bool backwards, Speed speed, double max_time, double settle_range, double turn_gate, double min_speed, double max_speed){
     double gate = (turn_gate == Units::AUTO ? move_to_point_turn_gate : turn_gate);
 
     //Create the two commands. With min_speed the turn keeps spinning into the drive instead of tapering to a stop.
     Rotate* rotate_command = rotate_to_point(x, y, gate * move_to_point_turn_early_exit_ratio, backwards, Units::AUTO_TIME, Units::AUTO, 127,
                                              min_speed > 0 ? move_to_point_chained_turn_min_speed : 0);
     rotate_command->skip_range = degToRad(gate);
-    Command* tank_motion_profile_command = Tank_motion_profile(x, y, early_exit_range, speed, max_time, settle_range, backwards, min_speed);
+    MotionParams p = get_lateral_params(speed);
+    if(max_speed > 0) p.cruise_vel = std::min(p.cruise_vel, max_speed); //only ever slows the preset down
+    Command* tank_motion_profile_command = new tank_motion_profile(this, x, y, p, early_exit_range, max_time, settle_range, backwards, min_speed, slow_start, slow_end, slow_speed);
 
     //Create a sequence and return it
     return new Sequence({rotate_command, tank_motion_profile_command});

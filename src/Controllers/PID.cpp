@@ -1,5 +1,6 @@
 #include "Controllers/PID.hpp"
 #include "util/mathUtils.h"
+#include <algorithm>
 
 double PID::update(double input){
     double error = target-input;
@@ -16,7 +17,9 @@ double PID::update(double input){
     double derivative = error-prev_error;
     prev_error = error;
 
-    return kP * error + kI * integral + kD * derivative;
+    double out = kP * error + kI * integral + kD * derivative;
+    if(max_output > 0) out = std::clamp(out, -max_output, max_output);
+    return out;
 }
 
 void PID::reset(double seed_error){

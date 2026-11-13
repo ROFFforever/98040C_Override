@@ -51,7 +51,9 @@ std::int32_t WallSensor::getObjectSize() {
 
 bool WallSensor::isObviouslyBad() {
     std::int32_t size = getObjectSize();
-    return getConfidence() < kMinConfidence || size < kMinObjectSize || size > kMaxObjectSize; //if we're scanning for walls, none of these flags should eval to true
+    float dist = getDist();
+    bool lowConf = getConfidence() < kMinConfidence && dist > kConfMinRangeIn; //confidence means nothing up close
+    return lowConf || size < kMinObjectSize || size > kMaxObjectSize; //if we're scanning for walls, none of these flags should eval to true
 }
 
 bool WallSensor::hasFreshSample() const {

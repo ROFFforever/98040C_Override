@@ -16,7 +16,8 @@ const char* sideToStr(WallSensor::Side side){
     return "UNKNOWN";
 }
 
-constexpr float kMaxCardinalDeviation = 90.0f;
+constexpr float kMaxCardinalDeviation = 20.0f; //was 90(check off): BACK readings at ~37 deg slant read ~1.6in short and got accepted (run_110-121)
+constexpr float kSensorLatencyS = 0.030f; //a distance reading is ~30ms old by the time we use it, so undo the motion since. Replay of run_110-121 with 20 deg: final 0.78 -> 0.70in
 constexpr float kCornerLimit = 60.0f;
 
 float sideAngleDeg(WallSensor::Side side){
@@ -32,11 +33,11 @@ float sideAngleDeg(WallSensor::Side side){
 
 std::string WallLocalization::config_json(){
     std::string out = std::format(
-        "\"wallMaxCardinalDeg\": {:.1f}, \"wallCornerLimit\": {:.1f}, \"wallBiasRate\": {:.3f}, "
+        "\"wallMaxCardinalDeg\": {:.1f}, \"wallLatencyMs\": {:.0f}, \"wallCornerLimit\": {:.1f}, \"wallBiasRate\": {:.3f}, "
         "\"wallBaseGate\": {:.2f}, \"wallDriftFraction\": {:.3f}, \"wallMaxGate\": {:.2f}, "
-        "\"wallConfMin\": {}, \"wallSizeMin\": {}, \"wallSizeMax\": {}, \"wallSensors\": {{",
-        kMaxCardinalDeviation, kCornerLimit, kDefaultBiasRate, baseGate, driftFraction, maxGate,
-        WallSensor::kMinConfidence, WallSensor::kMinObjectSize, WallSensor::kMaxObjectSize);
+        "\"wallConfMin\": {}, \"wallConfMinRangeIn\": {:.2f}, \"wallSizeMin\": {}, \"wallSizeMax\": {}, \"wallSensors\": {{",
+        kMaxCardinalDeviation, kSensorLatencyS * 1000.0f, kCornerLimit, kDefaultBiasRate, baseGate, driftFraction, maxGate,
+        WallSensor::kMinConfidence, WallSensor::kConfMinRangeIn, WallSensor::kMinObjectSize, WallSensor::kMaxObjectSize);
     bool first = true;
     for(WallSensor* s : sensors){
         if(s == nullptr) continue;
@@ -171,21 +172,34 @@ void WallLocalization::reset_pose(float bias_rate, bool override_checks){
     WallSensor::Side desired_sensor_side_x = (x > 0 ? front_side - 1 : front_side + 1);//Need to know whether it's on the negative or positive side of the axis
     WallSensor::Side desired_sensor_side_y = (y > 0 ? front_side : front_side - 2);
 
+    float startX = x;
+    float startY = y;
     apply_axis(x, y, true, desired_sensor_side_x, "x", xUncertainty, globalTheta, bias_rate, override_checks, now);
     apply_axis(y, x, false, desired_sensor_side_y, "y", yUncertainty, globalTheta, bias_rate, override_checks, now);
 
-    //set pose
-    chassis->setPose(x,y);
+    //x and y are copies taken before apply_axis (sensor reads + SD logging take a while). Writing them back would overwrite
+    //anything that set the pose in between (e.g. set_initial_pose), so only write when a reading was accepted,
+    //and add the correction to the CURRENT pose instead of replacing it
+    float dx = x - startX;
+    float dy = y - startY;
+    if(dx == 0 && dy == 0) return;
+    Pose current = chassis->gpos();
+    chassis->setPose(current.x + dx, current.y + dy);
 
 }
 
-WallLocalization::WallEstimate WallLocalization::estimate_from_wall(WallSensor::Side side, float poseVal, float globalTheta){
+WallLocalization::WallEstimate WallLocalization::estimate_from_wall(WallSensor::Side side, float poseVal, float globalTheta, bool isXAxis){
     WallEstimate est;
     est.hasSensor = find_sensor(side) != nullptr;
     if(!est.hasSensor) return est;
 
     double dist_from_wall = get_dist_from_wall(side, globalTheta, &est.raw);
     if(dist_from_wall == 9999 || dist_from_wall == PROS_ERR) return est;
+
+    //latency: the robot kept moving after the sensor measured, so the wall is now closer/further by v * latency along this axis
+    double headingRad = degToRad(globalTheta);
+    double axisVel = chassis->get_lateral_velocity() * (isXAxis ? std::cos(headingRad) : std::sin(headingRad));
+    dist_from_wall -= sgn(poseVal) * axisVel * kSensorLatencyS;
 
     est.inRange = true;
     est.distFromWall = dist_from_wall;
@@ -224,7 +238,7 @@ void WallLocalization::apply_axis(float& val, float otherVal, bool isXAxis, Wall
     entry.globalTheta = globalTheta;
     entry.now = now;
 
-    WallEstimate est = estimate_from_wall(side, val, globalTheta);
+    WallEstimate est = estimate_from_wall(side, val, globalTheta, isXAxis);
     entry.raw = est.raw;
     if(!est.inRange){
         entry.reject = est.hasSensor ? "sensor_range_error" : "no_sensor";
@@ -259,12 +273,12 @@ void WallLocalization::log_axis(const AxisLog& entry){
         "{{\"t\": {}, \"axis\": \"{}\", \"side\": \"{}\", \"accepted\": {}, \"reject\": \"{}\", "
         "\"distFromWall\": {:.2f}, \"poseVal\": {:.2f}, \"wallVal\": {:.2f}, \"errorIn\": {:.2f}, "
         "\"confidence\": {}, \"objectSize\": {}, \"gate\": {:.2f}, \"travel\": {:.2f}, "
-        "\"theta\": {:.1f}, \"angleDev\": 0, \"hitAlong\": {:.2f}, \"raw\": {:.3f}}}\n",
+        "\"theta\": {:.1f}, \"angleDev\": {:.1f}, \"hitAlong\": {:.2f}, \"raw\": {:.3f}}}\n",
         entry.now, entry.axisName, sideToStr(entry.side), entry.accepted ? "true" : "false", entry.reject,
         entry.distFromWall, entry.poseVal, entry.wallVal, entry.errorIn,
         entry.sensor != nullptr ? entry.sensor->getConfidence() : 0,
         entry.sensor != nullptr ? entry.sensor->getObjectSize() : 0,
-        entry.gate, entry.travel, entry.globalTheta, entry.hitAlong, entry.raw));
+        entry.gate, entry.travel, entry.globalTheta, cardinal_deviation(entry.globalTheta), entry.hitAlong, entry.raw));
 }
 
 void WallLocalization::log_slant_reject(float globalTheta, float angleDeviation, int now){
@@ -276,7 +290,7 @@ void WallLocalization::log_slant_reject(float globalTheta, float angleDeviation,
         now, globalTheta, angleDeviation));
 }
 
-bool WallLocalization::set_initial_pose(float headingDeg, Quadrant quadrant){
+bool WallLocalization::set_initial_pose(float headingDeg, Quadrant quadrant, float max_error_in, float nominal_x, float nominal_y){
     float signX = (quadrant == Quadrant::PosXPosY || quadrant == Quadrant::PosXNegY) ? 1.0f : -1.0f;
     float signY = (quadrant == Quadrant::PosXPosY || quadrant == Quadrant::NegXPosY) ? 1.0f : -1.0f;
 
@@ -293,27 +307,48 @@ bool WallLocalization::set_initial_pose(float headingDeg, Quadrant quadrant){
 
     bool xOk = dist_x != 9999 && dist_x != PROS_ERR && sensor_x != nullptr;
     bool yOk = dist_y != 9999 && dist_y != PROS_ERR && sensor_y != nullptr;
+    float seedX = signX * (70 - dist_x);
+    float seedY = signY * (70 - dist_y);
+
+    //with a nominal pose, each axis is judged on its own: a seed too far off the nominal start probably beamed
+    //something else (run_113-118: frozen RIGHT sensor, 42in off), so that axis alone falls back to nominal.
+    //Was all-or-nothing at 1in, which threw out good seeds in run_112/119 (hand placement varies ~1.4in)
+    bool useX = xOk, useY = yOk;
+    if(max_error_in > 0){
+        useX = xOk && std::fabs(seedX - nominal_x) <= max_error_in;
+        useY = yOk && std::fabs(seedY - nominal_y) <= max_error_in;
+    }
 
     if(TELEMETRY.isEnabled(Telemetry::Channel::WallLocalization)){
         TELEMETRY.send(Telemetry::Channel::WallLocalization, std::format(
             "{{\"t\": {}, \"event\": \"set_initial_pose\", \"headingDeg\": {:.1f}, \"sideX\": \"{}\", \"sideY\": \"{}\", "
             "\"distX\": {:.2f}, \"distY\": {:.2f}, \"rawX\": {:.3f}, \"rawY\": {:.3f}, \"xOk\": {}, \"yOk\": {}, "
+            "\"usedX\": {}, \"usedY\": {}, \"maxError\": {:.2f}, \"nominalX\": {:.2f}, \"nominalY\": {:.2f}, "
             "\"confX\": {}, \"sizeX\": {}, \"confY\": {}, \"sizeY\": {}}}\n",
             pros::millis(), headingDeg, sideToStr(side_x), sideToStr(side_y),
             dist_x, dist_y, raw_x, raw_y, xOk ? "true" : "false", yOk ? "true" : "false",
+            useX ? "true" : "false", useY ? "true" : "false", max_error_in, nominal_x, nominal_y,
             sensor_x != nullptr ? sensor_x->getConfidence() : 0,
             sensor_x != nullptr ? sensor_x->getObjectSize() : 0,
             sensor_y != nullptr ? sensor_y->getConfidence() : 0,
             sensor_y != nullptr ? sensor_y->getObjectSize() : 0));
     }
 
-    if(!xOk || !yOk) return false;
+    if(max_error_in <= 0){ //no nominal pose: need both sensors, caller handles the fallback
+        if(!xOk || !yOk) return false;
+    } else {
+        if(!useX && !useY){
+            printf("set_initial_pose: no usable seed (x %.2f ok=%d, y %.2f ok=%d), more than %.1fin off (%.2f, %.2f)\n",
+                   seedX, xOk, seedY, yOk, max_error_in, nominal_x, nominal_y);
+            return false; //caller falls back to the full nominal pose
+        }
+        if(!useX) printf("set_initial_pose: x seed %.2f rejected, using nominal %.2f\n", seedX, nominal_x);
+        if(!useY) printf("set_initial_pose: y seed %.2f rejected, using nominal %.2f\n", seedY, nominal_y);
+    }
 
-    float x = signX * (70 - dist_x);
-    float y = signY * (70 - dist_y);
-    chassis->setPose(x, y, degToRad(headingDeg));
-    xUncertainty.clear();
-    yUncertainty.clear();
+    chassis->setPose(useX ? seedX : nominal_x, useY ? seedY : nominal_y, degToRad(headingDeg));
+    if(useX) xUncertainty.clear();
+    if(useY) yUncertainty.clear();
     return true;
 }
 

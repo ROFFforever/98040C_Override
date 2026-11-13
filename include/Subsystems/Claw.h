@@ -8,8 +8,8 @@
 //named claw positions(getAngle() units = open/close motor degrees). Pass these to Claw::moveTo
 namespace ClawPos {
     constexpr double CLOSED = -200;
-    constexpr double START = 0; //where the claw physically sits at the start of a match(holding the initial pins). resetPosition(START) in initialize()
-    constexpr double OPEN = 0; //TODO TUNE: placeholder
+    constexpr double START = 0; //the claw starts every match fully open, so fully open reads 0. resetPosition(START) in initialize()
+    constexpr double OPEN = START; //fully open is the zero point
 }
 
 //This Motors group is the open/close motors(they also provide the claw's position).

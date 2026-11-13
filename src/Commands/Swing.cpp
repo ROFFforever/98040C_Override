@@ -14,6 +14,8 @@ Swing::Swing(double target_ang, DriveSide locked_side, drivetrain* drive, bool r
     this->reverse=reverse;
     this->early_exit_range=degToRad(early_exit_range);
     this->max_mV=(int)(max_speed * 12000.0 / 127);
+    if(drive->residual_angular_pid->get_max_output() > 0) //PID's raw cap also covers the kS kick
+        this->max_mV=std::min(max_mV, (int)drive->residual_angular_pid->get_max_output());
     this->min_mV=std::min((int)(min_speed * 12000.0 / 127), max_mV);
     this->drive=drive;
     this->auto_time = (max_time == Units::AUTO_TIME);

@@ -222,6 +222,13 @@ class PlanPanel(QWidget):
                                         "WallLocalization* wallLoc parameter. The quadrant comes from the start x/y signs.")
         self.wall_pose_check.toggled.connect(lambda on: self._plan_field("wall_pose", on))
         form.addRow("", self.wall_pose_check)
+        self.wall_error_spin = self._guarded(QDoubleSpinBox())
+        self.wall_error_spin.setRange(0, 24)
+        self.wall_error_spin.setDecimals(1)
+        self.wall_error_spin.setSuffix(" in")
+        self.wall_error_spin.setToolTip("reject the seed if x or y lands further than this from the start pose(0 = no check)")
+        self.wall_error_spin.valueChanged.connect(lambda v: self._plan_field("wall_max_error", round(v, 3)))
+        form.addRow("Seed max error", self.wall_error_spin)
 
         self.params_edit = QLineEdit()
         self.params_edit.setPlaceholderText("e.g. Lift* lift, piston* claw")
@@ -267,8 +274,7 @@ class PlanPanel(QWidget):
         row = QHBoxLayout()
         row.setSpacing(2)
         for bind_id, text in (("step_up", "↑"), ("step_down", "↓"), ("step_duplicate", "Dup"),
-                              ("step_delete", "Del"), ("step_async", "Async"), ("group", "Sequence"),
-                              ("undo", "Undo"), ("redo", "Redo")):
+                              ("step_delete", "Del"), ("step_async", "Async"), ("group", "Sequence")):
             row.addWidget(_tool(self.actions[bind_id], text))
         row.addStretch(1)
         return row
@@ -335,6 +341,7 @@ class PlanPanel(QWidget):
         self.limit_combo.setCurrentIndex(i)
         self.set_pose_check.setChecked(plan.set_pose)
         self.wall_pose_check.setChecked(plan.wall_pose)
+        self.wall_error_spin.setValue(plan.wall_max_error)
         self.params_edit.setText(plan.extra_params)
         self.includes_edit.setText(plan.extra_includes)
         self._loading = False

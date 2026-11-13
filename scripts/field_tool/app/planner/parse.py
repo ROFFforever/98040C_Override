@@ -305,19 +305,22 @@ def _convert_all(statements):
 # ---- start pose
 
 _POSE = r"chassis->setPose\(([^,]+),([^,]+),degToRad\(([^()]+)\)\);"
-_WALL_POSE = re.compile(r"if\(!\w+->set_initial_pose\(([^,]+),WallLocalization::Quadrant::\w+\)\)\{" + _POSE + r"\}")
+#optional args after the quadrant: max_error, nominal_x, nominal_y(nominal comes from setPose)
+_WALL_POSE = re.compile(r"if\(!\w+->set_initial_pose\(([^,]+),WallLocalization::Quadrant::\w+((?:,[^,()]+)*)\)\)\{"
+                        + _POSE + r"\}")
 _PLAIN_POSE = re.compile(_POSE)
 
 
 def _start_pose(st):
-    """-> (x, y, heading, wall_pose) when the statement sets the start pose, else None."""
+    """-> (x, y, heading, wall_pose, max_error) when the statement sets the start pose, else None."""
     compact = re.sub(r"\s+", "", st["code"])
     for pattern, wall in ((_WALL_POSE, True), (_PLAIN_POSE, False)):
         m = pattern.fullmatch(compact)
         if m:
             g = m.groups()[-3:]
             try:  #with the wall start, its heading argument is the one the robot uses
-                return _float(g[0]), _float(g[1]), _float(m.group(1) if wall else g[2]), wall
+                max_error = _float(m.group(2).split(",")[1]) if wall and m.group(2) else 0.0
+                return _float(g[0]), _float(g[1]), _float(m.group(1) if wall else g[2]), wall, max_error
             except ValueError:
                 return None
     return None
@@ -360,7 +363,7 @@ def parse_plan(name, cpp_text, h_text=""):
     statements = _split(body, "stmt")
     pose_at = next((i for i, st in enumerate(statements) if st["code"] and _start_pose(st)), None)
     if pose_at is not None:
-        plan.start_x, plan.start_y, plan.start_heading, plan.wall_pose = _start_pose(statements[pose_at])
+        plan.start_x, plan.start_y, plan.start_heading, plan.wall_pose, plan.wall_max_error = _start_pose(statements[pose_at])
         plan.set_pose = True
         pose_stmt = statements.pop(pose_at)
         if pose_stmt["lead"]:  #keep the comments that were above it

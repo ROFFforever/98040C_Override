@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDockWidget, QD
                                QMainWindow, QMessageBox, QSlider, QToolBar, QToolButton)
 
 from app import field_config as cfg
+from app import settings
 from app.field_view import FieldView
 from app.keybinds import BY_ID, KeybindDialog, Keybinds
 from app.planner.plan import identifier
@@ -94,11 +95,15 @@ class MainWindow(QMainWindow):
             self.actions[bind_id] = action
 
         add("open_run", self._browse_run, text="Open folder…")
+        add("clear_run", self.clear_run, text="Clear")
         add("keybinds", self._edit_keybinds, text="Keybinds…")
         add("profiles", self._edit_profiles, text="Edit…")
         add("fit", self.view.fit_field, text="Fit")
         add("grid", self.view.set_grid_visible, True, True, "Grid")
         add("axes", self.view.set_axes_visible, True, True, "Axes")
+        add("rotate_view", self._rotate_view)
+        saved = settings.load("view.json", {})
+        self._set_view_rotation(saved.get("rotation", 180 if saved.get("rotated") else 0))  #restore last session's view
         add("zoom_in", lambda: self.view.zoom_by(1.25))
         add("zoom_out", lambda: self.view.zoom_by(0.8))
         add("pan_left", lambda: self.view.pan_by(-80, 0))
@@ -140,8 +145,6 @@ class MainWindow(QMainWindow):
         add("step_duplicate", pl.duplicate_selected)
         add("step_async", pl.toggle_async)
         add("group", pl.toggle_group)
-        add("undo", pl.undo)
-        add("redo", pl.redo)
         add("new_plan", lambda: pl.new_plan())
         add("dup_plan", pl.duplicate_plan)
         add("delete_plan", self._delete_plan)
@@ -149,9 +152,17 @@ class MainWindow(QMainWindow):
         add("export", self._export_plan)
         self._planner_actions = [self.actions[b] for b in planner_binds + [
             "jump_plan", "align_plan", "add_run_point", "step_prev", "step_next", "step_up", "step_down", "step_delete", "step_duplicate",
-            "step_async", "group", "undo", "redo", "new_plan", "dup_plan", "delete_plan", "copy_code", "export"]]
+            "step_async", "group", "new_plan", "dup_plan", "delete_plan", "copy_code", "export"]]
         for action in self._planner_actions:
             action.setEnabled(False)
+
+    def _rotate_view(self):
+        self._set_view_rotation(self.view._rotation + 90)
+
+    def _set_view_rotation(self, degrees):
+        self.view.set_rotation(degrees)
+        self.actions["rotate_view"].setText(f"Rotate view ({self.view._rotation}°)")
+        settings.save("view.json", {"rotation": self.view._rotation})
 
     def _apply_keybinds(self):
         for bind_id, action in self.actions.items():
@@ -176,7 +187,7 @@ class MainWindow(QMainWindow):
             hint = (f"Placing {STEP_BY_ID[self.planner.placing].label}: click the field   "
                     f"(Shift = snap 1 in / 15°, Alt = backwards)   |   {self._key('deselect')} to stop")
         elif self.actions["planner"].isChecked():
-            hint = (f"{self._key('add_move_to_point')}-{self._key('add_code')} add step   drag handles to edit   "
+            hint = (f"{self._key('add_move_to_point')}-{self._key('add_move_forward_zoned')} add step   drag handles to edit   "
                     f"{self._key('step_prev')}/{self._key('step_next')} select step   {self._key('play')} play plan   "
                     f"{self._key('export')} export   |   {self._key('keybinds')} all keybinds")
         else:
@@ -300,6 +311,7 @@ class MainWindow(QMainWindow):
         self._refresh_run_list()
         bar.addAction(QAction("↻", self, toolTip="Rescan the runs folder", triggered=self._refresh_run_list))
         bar.addAction(self.actions["open_run"])
+        bar.addAction(self.actions["clear_run"])
 
         bar.addSeparator()
         bar.addWidget(QLabel(" Robot: "))
@@ -318,7 +330,7 @@ class MainWindow(QMainWindow):
         bar.setMovable(False)
         bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.addToolBar(bar)
-        for bind_id in ("fit", "grid", "axes", None, "robot_trace", "camera_trace", "ghost", None,
+        for bind_id in ("fit", "grid", "axes", "rotate_view", None, "robot_trace", "camera_trace", "ghost", None,
                         "motion_mode", "frame_mode", None, "planner"):
             if bind_id is None:
                 bar.addSeparator()
@@ -454,10 +466,17 @@ class MainWindow(QMainWindow):
         if folder:
             self.load_run(folder)
         else:
-            self.overlay.set_run(None)
-            self.run_label.setText("")
-            self._notes = []
-            self._update_hint()
+            self.clear_run()
+
+    def clear_run(self):
+        """Take the loaded run (its odom/camera paths and robot outlines) off the field. The plan stays."""
+        self.overlay.set_run(None)
+        self.run_combo.setCurrentIndex(0)
+        self.run_label.setText("")
+        self._notes = []
+        self._refresh_plan_trace()  #auto start time depended on the run
+        self._update_hint()
+        self.view.setFocus()
 
     def _browse_run(self):
         self.overlay.pause()

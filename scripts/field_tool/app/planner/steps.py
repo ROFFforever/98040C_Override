@@ -69,6 +69,12 @@ MAX_SPEED = Param("max_speed", "Max speed", "int", 127, "/127", 1, 127, 1, decim
 #motion chaining: 0 = taper and stop at the target. Above 0 the motion never slows below this and hands off while moving
 MIN_SPEED_TURN = Param("min_speed", "Min speed (chain)", "int", 0, "/127", 0, 127, 1, decimals=0)
 MIN_SPEED_DRIVE = Param("min_speed", "Min speed (chain)", "float", 0.0, "in/s", 0, 100, 1, decimals=1)
+#moveToPoint's max_speed: caps the Speed preset's cruise velocity, 0 = preset as-is
+MAX_SPEED_DRIVE = Param("max_speed", "Max speed", "float", 0.0, "in/s", 0, 200, 1, decimals=1)
+#slow zones (moveToPointZoned / moveForwardZoned): first/last N inches capped at slow_speed, the middle runs fast
+SLOW_START = Param("slow_start", "Slow start", "float", 0.0, "in", 0, 200, 0.5, decimals=1, optional=False)
+SLOW_END = Param("slow_end", "Slow end", "float", 6.0, "in", 0, 200, 0.5, decimals=1, optional=False)
+SLOW_SPEED = Param("slow_speed", "Slow speed", "float", 20.0, "in/s", 1, 200, 1, decimals=1, optional=False)
 TURN_GATE = Param("turn_gate", "Turn gate", "auto", None, "°", 0, 180, 1, decimals=1, cpp_auto="Units::AUTO")
 SPEED = Param("speed", "Speed", "choice", "NORMAL", choices=("SLOW", "NORMAL", "FAST"), cpp_enum="Speed")
 BACKWARDS = Param("backwards", "Backwards", "bool", False)
@@ -118,6 +124,19 @@ def _drive_to(m, x, y, backwards, vel, accel, p):
     face = math.degrees(math.atan2(y - y0, x - x0)) + (180 if backwards else 0)
     early = min(p.get("early_exit", 0.0), dist)
     min_speed = p.get("min_speed", 0.0)  #in/s: the profile plans to arrive at this speed and hands off moving
+    if "slow_speed" in p:  #zoned: the profile is planned over the whole distance, early exit just cuts it off
+        if early > 0:
+            m.notes.append(f"hands off {num(early)} in early, still moving")
+        if min_speed > 0:
+            arrive = min(min_speed, p["slow_speed"]) if p["slow_end"] > 0 else min_speed  #a slow end zone caps the arrival speed
+            m.notes.append(f"chained: arrives at {num(arrive)} in/s and hands off without stopping")
+        t = m.line_zoned(x, y, face, vel, accel, min_speed, p["slow_start"], p["slow_end"], p["slow_speed"],
+                         dist - early if early > 0 else None)
+        hands_off = early > 0 or min_speed > 0
+        if not hands_off:
+            m.hold(SETTLE_S)
+        _check_time(m, p, t + (0 if hands_off else SETTLE_S))
+        return
     if early > 0:  #exits once the remaining distance is under early_exit, motors still going
         f = (dist - early) / dist
         x, y = x0 + (x - x0) * f, y0 + (y - y0) * f
@@ -146,6 +165,8 @@ def _sim_move_to_point(pose, p, profile):
         eff = turn - math.copysign(min(gate * MOVE_TO_POINT_TURN_EXIT_RATIO, abs(turn)), turn)
         m.turn(eff, abs(eff) / profile.turn_rate_dps)
     vel, accel = profile.lateral(p["speed"])
+    if p.get("max_speed", 0) > 0:
+        vel = min(vel, p["max_speed"])  #only ever slows the preset down, same as drivetrain.cpp
     _drive_to(m, p["x"], p["y"], p["backwards"], vel, accel, p)
     return m
 
@@ -220,6 +241,15 @@ def _sim_code(pose, p, profile):
     return m
 
 
+def _zones(p):
+    parts = []
+    if p.get("slow_start"):
+        parts.append(f"slow first {num(p['slow_start'])}")
+    if p.get("slow_end"):
+        parts.append(f"slow last {num(p['slow_end'])}")
+    return f"  [{', '.join(parts) or 'no zones'} @ {num(p['slow_speed'])}]"
+
+
 def _flags(p):
     out = []
     if p.get("backwards"):
@@ -230,12 +260,14 @@ def _flags(p):
         out.append(f"exit {num(p['early_exit'])}")
     if p.get("min_speed"):
         out.append(f"chain {num(p['min_speed'])}")
+    if "max_speed_in" not in p and p.get("speed") is not None and p.get("max_speed"):  #moveToPoint's in/s cap, not a turn's /127
+        out.append(f"max {num(p['max_speed'])}")
     return ("  " + ", ".join(out)) if out else ""
 
 
 STEP_TYPES = [
     StepType("move_to_point", "Move to point", "chassis->moveToPoint",
-             (X, Y, _early_exit("in"), BACKWARDS, SPEED, MAX_TIME, SETTLE_IN, TURN_GATE, MIN_SPEED_DRIVE),
+             (X, Y, _early_exit("in"), BACKWARDS, SPEED, MAX_TIME, SETTLE_IN, TURN_GATE, MIN_SPEED_DRIVE, MAX_SPEED_DRIVE),
              _sim_move_to_point,
              lambda p: f"moveToPoint ({num(p['x'])}, {num(p['y'])})" + _flags(p),
              handle="point", repeat_place=True),
@@ -251,6 +283,20 @@ STEP_TYPES = [
               _early_exit("in"), MAX_TIME, SETTLE_IN, MIN_SPEED_DRIVE),
              _sim_move_forward,
              lambda p: f"moveForward {num(p['distance'])} in @ {num(p['max_speed_in'])}" + _flags(p),
+             includes=("Commands/tank_motion_profile.hpp",), handle="distance"),
+    StepType("move_to_point_zoned", "Move to point (slow zones)", "chassis->moveToPointZoned",
+             (X, Y, SLOW_START, SLOW_END, SLOW_SPEED, _early_exit("in"), BACKWARDS, SPEED, MAX_TIME, SETTLE_IN, TURN_GATE,
+              MIN_SPEED_DRIVE, MAX_SPEED_DRIVE),
+             _sim_move_to_point,
+             lambda p: f"moveToPointZoned ({num(p['x'])}, {num(p['y'])})" + _zones(p) + _flags(p),
+             handle="point", repeat_place=True),
+    StepType("move_forward_zoned", "Move forward (slow zones)", "chassis->moveForwardZoned",
+             (Param("distance", "Distance", "float", 24.0, "in", 0, 200, 0.5, optional=False),
+              Param("backwards", "Backwards", "bool", False, optional=False),
+              Param("max_speed_in", "Max speed", "float", 60.0, "in/s", 1, 200, 1, decimals=1, optional=False),
+              SLOW_START, SLOW_END, SLOW_SPEED, _early_exit("in"), MAX_TIME, SETTLE_IN, MIN_SPEED_DRIVE),
+             _sim_move_forward,
+             lambda p: f"moveForwardZoned {num(p['distance'])} in @ {num(p['max_speed_in'])}" + _zones(p) + _flags(p),
              includes=("Commands/tank_motion_profile.hpp",), handle="distance"),
     StepType("rotate", "Rotate to heading", "chassis->rotate",
              (TARGET_DEG, _early_exit("°"), MAX_TIME, SETTLE_DEG, MAX_SPEED, MIN_SPEED_TURN),

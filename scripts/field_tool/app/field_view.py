@@ -1,3 +1,4 @@
+import math
 from PySide6.QtCore import Qt, QPointF, QRectF, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsItemGroup, QGraphicsScene, QGraphicsView
@@ -48,6 +49,7 @@ class FieldView(QGraphicsView):
         self.axes = self._make_axes()
 
         self._zoom = 1.0
+        self._rotation = 0
         self._pan_last = None
         self.placing = False  #planner is waiting for a click: every left click is a field click, even on handles
 
@@ -112,8 +114,17 @@ class FieldView(QGraphicsView):
         self.scene().addItem(group)
         return group
 
+    def set_rotation(self, degrees):
+        """View-only turn, counter-clockwise on screen (90 = the planner's left wall ends up at the bottom).
+        Field coordinates don't change."""
+        self._rotation = degrees % 360
+        self.fit_field()
+
     def fit_field(self):
         self.resetTransform()
+        if self._rotation:
+            self.rotate(-self._rotation)  #Qt's rotate() is clockwise
+
         self.fitInView(self.field_rect, Qt.KeepAspectRatio)
         self._zoom = 1.0
         self.view_changed.emit()
@@ -167,7 +178,8 @@ class FieldView(QGraphicsView):
                 super().mousePressEvent(event)  #let the item handle (drag) it
                 return
             x, y = scene_to_field(self.mapToScene(event.position().toPoint()))
-            self.field_clicked.emit(x, y, 1.0 / self.transform().m11())
+            t = self.transform()  #m11 alone is cos(rotation) * zoom, which is 0 when the view is turned 90 degrees
+            self.field_clicked.emit(x, y, 1.0 / math.hypot(t.m11(), t.m12()))
             return
         super().mousePressEvent(event)
 

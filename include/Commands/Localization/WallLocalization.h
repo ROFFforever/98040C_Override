@@ -59,7 +59,7 @@ class WallLocalization : public Command {
     void accrue_travel();
     bool has_fresh_sensor();
     float cardinal_deviation(float globalTheta);
-    WallEstimate estimate_from_wall(WallSensor::Side side, float poseVal, float globalTheta);
+    WallEstimate estimate_from_wall(WallSensor::Side side, float poseVal, float globalTheta, bool isXAxis);
     bool beam_clear_of_corner(WallSensor* sensor, bool isXAxis, float x, float y, float globalTheta, double& hitAlong);
     void apply_axis(float& val, float otherVal, bool isXAxis, WallSensor::Side side, const char* axisName, AxisUncertainty& uncertainty, float globalTheta, float bias_rate, bool override_checks, int now);
     void log_axis(const AxisLog& entry);
@@ -84,7 +84,9 @@ class WallLocalization : public Command {
      * @param override_checks Set this to true if you want to disable checking(you are confident it will reset correctly)
      */
     void reset_pose(float bias_rate=kDefaultBiasRate,bool override_checks=false);
-    bool set_initial_pose(float headingDeg, Quadrant quadrant);
+    //max_error_in > 0: each axis whose seed lands further than that from (nominal_x, nominal_y) uses the nominal value instead.
+    //returns false (pose untouched) only if neither axis could be seeded
+    bool set_initial_pose(float headingDeg, Quadrant quadrant, float max_error_in=0, float nominal_x=0, float nominal_y=0);
     std::string config_json(); //for the config event
     void initialize() override;
     void execute() override;

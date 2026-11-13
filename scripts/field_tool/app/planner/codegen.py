@@ -120,8 +120,11 @@ def _set_pose(plan):
     if not _wall_pose(plan):
         return f"{IND}{pose} //starting pose"
     quad = ("Pos" if plan.start_x >= 0 else "Neg") + "X" + ("Pos" if plan.start_y >= 0 else "Neg") + "Y"
+    args = [num(plan.start_heading), f"WallLocalization::Quadrant::{quad}"]
+    if plan.wall_max_error:  #nominal = the start pose, so dragging the start keeps the check in sync
+        args += [num(plan.wall_max_error), num(plan.start_x), num(plan.start_y)]
     return "\n".join([
-        f"{IND}if(!wallLoc->set_initial_pose({num(plan.start_heading)}, WallLocalization::Quadrant::{quad})){{"
+        f"{IND}if(!wallLoc->set_initial_pose({', '.join(args)})){{"
         " //seed pose from the wall sensors",
         f"{IND}{IND}{pose} //sensors missed, use the nominal start pose",
         f"{IND}}}"])

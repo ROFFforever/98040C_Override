@@ -31,7 +31,10 @@
 #include "Autons/OdomAccuracyTest.h"
 #include "GeneratedAutons/RedHard.h"
 #include "GeneratedAutons/auton_1.h"
-#include "GeneratedAutons/auton_2.h"
+#include "GeneratedAutons/skills.h"
+#include "GeneratedAutons/skills_pt_2.h"
+#include "GeneratedAutons/skills_pt_3.h"
+#include "GeneratedAutons/skills_optimized_test.h"
 #include <format>
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
@@ -61,7 +64,7 @@ odom_wheel horiz(&horizRotation, 0.75, 2.75); //0.75 back of center, 5/8 left (l
 //controllers
 PID residual_lateral_PID(1.0 * 1000,0,45*100,0,0); //PID tuning run 3 (run_35 P-only 0.95: 2.6in overshoot; run_37 kP 1.0 kD 20: 1.76in overshoot). Was kP 0.95, kD 26 (tuned with the old 1.55V kS)
 //PID residual_lateral_PID(0 * 1000,0,0*100,0,0);
-PID angular_pid(26 * 1000.0,0,1800 * 100,0,0); //angular tuning (run_50 P-only: 31deg overshoot, 5 swings). Was kP 26, kD 1457
+PID angular_pid(26 * 1000.0,0,1800 * 100,0,0, 7000); //angular tuning (run_50 P-only: 31deg overshoot, 5 swings). Was kP 26, kD 1457
 //avg of kav_trial_2 + kav_trial_3 (new drivetrain, refit from the vert pod). Old: kV 0.1384, kA 0.024, kS 1.551
 velocity_feed_forward ff_lateral( 0.152 * 1000,  // kV
                           0.010 * 1000, // kA is 0 because it doens't pull much weight
@@ -101,7 +104,7 @@ odom_wheel horiz(&horizRotation, 0.75, 2.125);
 
 //controllers
 PID residual_lateral_PID(2.4 * 1000,0,70*100,0,0);
-PID angular_pid(15.2 * 1000.0,0,117 * 1000,0,0);
+PID angular_pid(15.2 * 1000.0,0,117 * 1000,0,0, 9000); //9V raw cap, gains were tuned at 9V (12V hopped, run_64/66)
 
 
 // //
@@ -245,8 +248,8 @@ void initialize() {
 	lift.resetPosition();
 	lift.setHold(false); //starts physically down, so coast like the DOWN macro does. Every other macro holds when it finishes
 	lift.setDebugStream(true); //set true to stream lift position over pros terminal every 0.5s
-	claw.resetPosition(ClawPos::START); //claw starts every match holding the initial pins, so that physical position reads 0
-	claw.setHold(true); //holds the initial pins at the start. After a claw macro finishes, ClawTeleopCommand switches it(only closed holds, everything else coasts)
+	claw.resetPosition(ClawPos::START); //claw starts every match fully open, so that physical position reads 0
+	claw.setHold(true); //holds position at the start. After a claw macro finishes, ClawTeleopCommand switches it(only closed holds, everything else coasts)
 	claw.brake();
 	odomScreen.setLiftGetter([]{ return lift.getAngle(); }); //shows lift position on the brain screen
 #endif
@@ -284,7 +287,7 @@ void initialize() {
 	//set motion params for KAV model
 #ifdef ROBOT_MAIN
 	chassis.set_speeds_lateral(Speed::SLOW, {40.0, 0.0, 65.0}); // cruise_vel, final_vel, accel
-	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 75.0}); // cruise_vel, final_vel, accel
+	chassis.set_speeds_lateral(Speed::NORMAL, {60.0, 0.0, 90.0}); // cruise_vel, final_vel, accel. was 75: every leg a triangle, peak 5-7V of 12 (run_110-121)
 	chassis.set_speeds_lateral(Speed::FAST, {80.0, 0.0, 85.0}); // cruise_vel, final_vel, accel
 
 	chassis.angular_kS = 700; //stall kick, run_57 stuck at 0.45deg with 400 kick + 200 P. Was 1910 (old drivetrain)
@@ -346,8 +349,29 @@ void autonomous() {
 	TELEMETRY.send(Telemetry::Channel::Debug, std::format(
 		"{{\"t\": {}, \"event\": \"auton_start\"}}\n", pros::millis()));
 
-	//AUTON SELECT: 0 = none (falls through to the test code below), 1 = RedHard, 2 = BlueHard
-	constexpr int AUTON_SELECT = 0;
+	//AUTON SELECT: 0 = none (falls through to the test code below), 1 = RedHard, 2 = BlueHard, 3 = skills, 4 = skills_pt_3 (test), 5 = skills_optimized_test (speed experiment)
+	constexpr int AUTON_SELECT = 3;
+	if(AUTON_SELECT == 3){
+#ifdef HAS_LIFT
+		skills(&chassis, &wallLocalization, &claw, &lift); //full skills (part 1 + matchloader cycles), seeds its own start pose
+#endif
+		printf("END\n"); //tells auto_record.py to stop the camera recording
+		return;
+	}
+	if(AUTON_SELECT == 4){
+#ifdef HAS_LIFT
+		skills_pt_3(&chassis, &wallLocalization, &claw, &lift); //skills part 3 on its own, start at the matchloader facing -X
+#endif
+		printf("END\n");
+		return;
+	}
+	if(AUTON_SELECT == 5){
+#ifdef HAS_LIFT
+		skills_optimized_test(&chassis, &wallLocalization, &claw, &lift); //speed-first copy of skills, same start pose
+#endif
+		printf("END\n");
+		return;
+	}
 	if(AUTON_SELECT != 0){
 		//seed the start pose from the wall sensors, RedHard/BlueHard use their nominal start pose if a sensor misses
 		bool seeded = (AUTON_SELECT == 1) ? wallLocalization.set_initial_pose(90, WallLocalization::Quadrant::NegXNegY)

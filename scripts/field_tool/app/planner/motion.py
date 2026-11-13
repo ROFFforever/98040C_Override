@@ -51,6 +51,49 @@ def trap_pos(t, dist, vel, accel, vf=0.0):
     return dist - (vf * left + 0.5 * accel * left * left)
 
 
+def _piece(length, v0, cruise, vf, accel):
+    """One piece of a zoned profile (tank_motion_profile.cpp): v0 -> cruise -> vf over length.
+    -> (duration, pos(t)). v0 is clamped to cruise like TrapezoidProfile does."""
+    v0 = min(v0, cruise)
+    d_up = (cruise * cruise - v0 * v0) / (2 * accel)
+    d_down = (cruise * cruise - vf * vf) / (2 * accel)
+    if d_up + d_down >= length:
+        peak = math.sqrt(max(0.0, accel * length + (v0 * v0 + vf * vf) / 2))
+        t_up, t_c = max(0.0, (peak - v0) / accel), 0.0
+    else:
+        peak = cruise
+        t_up, t_c = (peak - v0) / accel, (length - d_up - d_down) / cruise
+    t_dn = max(0.0, (peak - vf) / accel)
+
+    def pos(t):
+        if t <= t_up:
+            return v0 * t + 0.5 * accel * t * t
+        up = (v0 + peak) / 2 * t_up
+        if t <= t_up + t_c:
+            return up + peak * (t - t_up)
+        dt = min(t - t_up - t_c, t_dn)
+        return min(length, up + peak * t_c + peak * dt - 0.5 * accel * dt * dt)
+    return t_up + t_c + t_dn, pos
+
+
+def zoned_pieces(dist, vel, accel, vf, slow_start, slow_end, slow_vel):
+    """Split a move into slow / fast / slow pieces the same way tank_motion_profile.cpp does.
+    -> list of (start position, duration, pos(t)). Every zone boundary is crossed at slow_vel."""
+    s0 = min(max(slow_start, 0.0), dist)
+    s1 = min(max(dist - slow_end, s0), dist)
+    spans = [(a, b, c) for a, b, c in ((0, s0, slow_vel), (s0, s1, max(vel, slow_vel)), (s1, dist, slow_vel)) if b - a > 1e-6]
+    out, v_in = [], 0.0
+    for i, (a, b, cruise) in enumerate(spans):
+        v_goal = min(vf, cruise) if i == len(spans) - 1 else slow_vel
+        vi = min(max(v_in, 0.0), cruise)
+        v_goal = min(v_goal, math.sqrt(vi * vi + 2 * accel * (b - a)))   #can't speed up that much
+        v_goal = max(v_goal, math.sqrt(max(0.0, vi * vi - 2 * accel * (b - a))))  #can't slow down that much
+        dur, pos = _piece(b - a, v_in, cruise, v_goal, accel)
+        out.append((a, dur, pos))
+        v_in = v_goal
+    return out
+
+
 class Motion:
     """Pose samples (t, x, y, heading) built up one phase at a time, starting at t = 0."""
 
@@ -97,3 +140,26 @@ class Motion:
             f = trap_pos(t, dist, vel, accel, vf) / dist if dist > 0 else 1.0
             self.samples.append((t0 + t, x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, h0 + dh * min(1.0, f / 0.3)))
         return total
+
+    def line_zoned(self, x1, y1, heading_end, vel, accel, vf, slow_start, slow_end, slow_vel, stop_at=None):
+        """line() with slow zones (moveToPointZoned / moveForwardZoned). stop_at = position along the move where an
+        early exit hands off (None = the whole way)."""
+        t0, x0, y0, h0 = self.samples[-1]
+        dist = math.hypot(x1 - x0, y1 - y0)
+        if dist <= 0 or accel <= 0:
+            return self.line(x1, y1, heading_end, vel, accel, vf)
+        stop = dist if stop_at is None else min(stop_at, dist)
+        dh = wrap(heading_end - h0)
+        t_base = 0.0
+        for start, dur, pos in zoned_pieces(dist, vel, accel, vf, slow_start, slow_end, slow_vel):
+            n = max(1, math.ceil(dur / DT))
+            for k in range(1, n + 1):
+                t = dur * k / n
+                d = start + pos(t)
+                done = d >= stop - 1e-9
+                f = min(d, stop) / dist
+                self.samples.append((t0 + t_base + t, x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, h0 + dh * min(1.0, f / 0.3)))
+                if done:
+                    return t_base + t
+            t_base += dur
+        return t_base

@@ -16,6 +16,7 @@ namespace LiftPos {
     constexpr double THIRD_CONE = -2500;
     constexpr double FOURTH_CONE = -3200;
     constexpr double FIFTH_CONE = -3950;
+    constexpr double SIXTH_CONE = -4700; // guess (+750 like 4th->5th), not tested yet
 }
 
 class Lift : public Motors{

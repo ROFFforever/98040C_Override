@@ -26,6 +26,9 @@ class WallSensor : public Subsystem {
     static constexpr int kMinConfidence = 45;
     static constexpr int kMinObjectSize = 80;
     static constexpr int kMaxObjectSize = 150;
+    //the V5 distance sensor only reports a real confidence past 200 mm (7.9 in); closer it reads ~10
+    //even on a flat wall (run_65: LEFT at the matchloader, ~6 in, conf 10, every reading rejected)
+    static constexpr float kConfMinRangeIn = 7.87f;
 
     //Horizontal offset is positive if it's right from robot center.
     //Vertical offset is always positive

@@ -1,7 +1,6 @@
-"""Auton planner state: the open plan, selection, undo/redo, placing steps by clicking, autosave.
+"""Auton planner state: the open plan, selection, placing steps by clicking, autosave.
 The panel and field overlay only read from here and call these methods - neither edits the plan directly."""
 import math
-import time
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -14,10 +13,8 @@ from app.planner.simulate import can_async, simulate_plan
 from app.planner.steps import BY_ID, default_params
 
 STATE_FILE = "planner.json"  #remembers the last open plan
-UNDO_LIMIT = 200
-COALESCE_S = 1.0             #edits to the same field within this long are one undo step
 POLL_MS = 1000               #how often the open plan's .cpp is checked for edits made outside the tool
-POINT_STEP_TYPES = ("move_to_point", "drive_to_point", "rotate_to_point")
+POINT_STEP_TYPES = ("move_to_point", "move_to_point_zoned", "drive_to_point", "rotate_to_point")
 
 
 def snap(v, fine, coarse, use_coarse):
@@ -27,7 +24,7 @@ def snap(v, fine, coarse, use_coarse):
 
 class Planner(QObject):
     changed = Signal()          #plan contents, sim or selection changed
-    plan_switched = Signal()    #a different plan was opened / renamed / undo restored plan-level fields
+    plan_switched = Signal()    #a different plan was opened / renamed
     placing_changed = Signal()
 
     def __init__(self, profile):
@@ -38,8 +35,6 @@ class Planner(QObject):
         self.code = ("", "")    #(header, cpp) for the current plan
         self.selected = None    #path into the plan, see Plan.get()
         self.placing = None     #step type id waiting for a click on the field
-        self._undo, self._redo = [], []
-        self._last_key, self._last_time = None, 0.0
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(400)
@@ -121,7 +116,6 @@ class Planner(QObject):
         if new_id in store.taken_names():
             return f"There's already a file called {new_id}.cpp."
         old = self.plan.name
-        self.checkpoint()
         self.plan.name = new_id
         self._disk_text = None
         self._dirty = True
@@ -136,8 +130,6 @@ class Planner(QObject):
         self.plan = plan
         self.selected = None
         self.placing = None
-        self._undo, self._redo = [], []
-        self._last_key = None
         self._remember()
         self.plan_switched.emit()
         self.placing_changed.emit()
@@ -182,12 +174,10 @@ class Planner(QObject):
                 self.notice = notice
                 self.changed.emit()
             return
-        self.checkpoint()
         self.plan = plan
         self._disk_text = text
         self.notice = "\n".join(warnings)
         self.selected = self.selected if self.plan.get(self.selected) is not None else None
-        self._last_key = None
         self.plan_switched.emit()
         self._commit(save=False)
 
@@ -195,42 +185,6 @@ class Planner(QObject):
         self.profile = profile
         if self.plan is not None:
             self._commit(save=False)
-
-    # ---- undo
-
-    def checkpoint(self, key=None):
-        """Call before changing the plan. Repeated edits with the same key (e.g. typing in one spin box)
-        within COALESCE_S share one undo step."""
-        now = time.monotonic()
-        if key is not None and key == self._last_key and now - self._last_time < COALESCE_S:
-            self._last_time = now
-            return
-        self._undo.append((self.plan.to_dict(), self.selected))
-        del self._undo[:-UNDO_LIMIT]
-        self._redo.clear()
-        self._last_key, self._last_time = key, now
-
-    def undo(self):
-        self._swap(self._undo, self._redo)
-
-    def redo(self):
-        self._swap(self._redo, self._undo)
-
-    def _swap(self, src, dst):
-        if not src:
-            return
-        dst.append((self.plan.to_dict(), self.selected))
-        data, sel = src.pop()
-        old_name = self.plan.name
-        self.plan = Plan.from_dict(data)
-        if self.plan.name != old_name:  #undoing a rename: move the file back too
-            store.delete_plan(old_name)
-            self._disk_text = None
-            self._remember()
-        self.selected = sel if self.plan.get(sel) is not None else None
-        self._last_key = None
-        self.plan_switched.emit()
-        self._commit()
 
     def _commit(self, save=True):
         self.sim = simulate_plan(self.plan, self.profile)
@@ -297,7 +251,6 @@ class Planner(QObject):
             self._place_params(type_id, params, self.insert_pose(), x, y, use_coarse)
             if backwards and "backwards" in params:
                 params["backwards"] = True
-        self.checkpoint()
         self._insert(Step(type_id, params))
         self._commit()
 
@@ -349,7 +302,6 @@ class Planner(QObject):
         step = self.plan.get(path)
         if step is None or step.params.get(name) == value:
             return
-        self.checkpoint(("param", path, name))
         step.params[name] = value
         self._commit()
 
@@ -358,14 +310,12 @@ class Planner(QObject):
         item = self.plan.get(path)
         if item is None or getattr(item, name) == value:
             return
-        self.checkpoint(("item", path, name))
         setattr(item, name, value)
         self._commit()
 
     def set_plan_field(self, name, value):
         if getattr(self.plan, name) == value:
             return
-        self.checkpoint(("plan", name))
         setattr(self.plan, name, value)
         self._commit()
 
@@ -373,7 +323,6 @@ class Planner(QObject):
         sel = self.selected
         if self.plan.get(sel) is None:
             return
-        self.checkpoint()
         if len(sel) == 2:
             group = self.plan.items[sel[0]]
             del group.steps[sel[1]]
@@ -393,7 +342,6 @@ class Planner(QObject):
         item = self.plan.get(self.selected)
         if item is None:
             return
-        self.checkpoint()
         copy = Plan(items=[item]).copy().items[0]
         sel = self.selected
         if len(sel) == 2:
@@ -416,7 +364,6 @@ class Planner(QObject):
         item = self.plan.get(sel)
         if item is None:
             return
-        self.checkpoint()
         if len(sel) == 2 or isinstance(item, Group):
             group = self.plan.items[sel[0]]
             self.plan.items[sel[0]:sel[0] + 1] = group.steps
@@ -434,7 +381,6 @@ class Planner(QObject):
         if item is None:
             return
         items = self.plan.items
-        self.checkpoint()
         if len(sel) == 2:
             group = items[sel[0]]
             j = sel[1] + direction
@@ -452,7 +398,6 @@ class Planner(QObject):
         else:
             i = sel[0] + direction
             if not 0 <= i < len(items):
-                self._undo.pop()
                 return
             neighbor = items[i]
             if isinstance(neighbor, Group) and isinstance(item, Step):  #step enters the sequence
@@ -473,7 +418,6 @@ class Planner(QObject):
     # ---- dragging handles on the field
 
     def begin_drag(self, key):
-        self.checkpoint()
         self.dragging = True
         if key[0] in ("point", "distance", "angle"):
             self.select(key[1])

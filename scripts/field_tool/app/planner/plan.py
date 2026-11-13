@@ -1,5 +1,5 @@
 """The auton plan: start pose + an ordered list of steps. It lives in the exported C++ (store.py reads/writes
-it, parse.py reads the code back, codegen.py writes it). to_dict/from_dict are for undo and for opening the
+it, parse.py reads the code back, codegen.py writes it). to_dict/from_dict are for opening the
 old scripts/field_tool/autons/*.json plans."""
 import copy
 import re
@@ -39,6 +39,7 @@ class Plan:
     start_heading: float = 0.0
     set_pose: bool = True        #emit chassis->setPose(start) at the top
     wall_pose: bool = False      #seed the start pose from the wall sensors (setPose(start) becomes the fallback)
+    wall_max_error: float = 0.0  #reject the seed if it lands further than this from start x/y (0 = no check)
     extra_params: str = ""       #e.g. "Lift* lift, piston* claw" for custom code steps
     extra_includes: str = ""     #comma separated headers for the generated .h
     time_limit: float = 15.0     #15 = match auton, 60 = skills
@@ -79,7 +80,7 @@ class Plan:
                 items.append(step(it))
         return {"version": 1, "name": self.name, "style": self.style,
                 "start": {"x": self.start_x, "y": self.start_y, "heading": self.start_heading},
-                "set_pose": self.set_pose, "wall_pose": self.wall_pose, "extra_params": self.extra_params,
+                "set_pose": self.set_pose, "wall_pose": self.wall_pose, "wall_max_error": self.wall_max_error, "extra_params": self.extra_params,
                 "extra_includes": self.extra_includes, "time_limit": self.time_limit, "items": items}
 
     @classmethod
@@ -102,7 +103,8 @@ class Plan:
         return cls(name=d.get("name", "new_auton"), style=d.get("style", "lines") if d.get("style") in STYLES
                    else "lines", start_x=start.get("x", 0.0), start_y=start.get("y", 0.0),
                    start_heading=start.get("heading", 0.0), set_pose=d.get("set_pose", True),
-                   wall_pose=d.get("wall_pose", False), extra_params=d.get("extra_params", ""), extra_includes=d.get("extra_includes", ""),
+                   wall_pose=d.get("wall_pose", False), wall_max_error=d.get("wall_max_error", 0.0),
+                   extra_params=d.get("extra_params", ""), extra_includes=d.get("extra_includes", ""),
                    time_limit=d.get("time_limit", 15.0), items=items)
 
     def copy(self):
