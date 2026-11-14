@@ -7,7 +7,8 @@
 const double lift_default_exit_range = 5; //degrees
 const double lift_default_max_time = 3;   //seconds
 
-LiftMoveTo::LiftMoveTo(Lift* lift, double target_deg, double exit_range, double max_time, int max_speed, int min_speed, bool relative){
+LiftMoveTo::LiftMoveTo(Lift* lift, double target_deg, double exit_range, double max_time, int max_speed, int min_speed, bool relative, bool limit_descent){
+    this->limit_descent=limit_descent;
     this->lift=lift;
     this->target_deg=target_deg;
     this->relative=relative;
@@ -48,7 +49,7 @@ void LiftMoveTo::execute(){
     if(abs(out) < min_mV) out = (out < 0 ? -min_mV : min_mV);
     out = std::clamp(out, -max_mV, max_mV);
     //positions get more negative going up(DOWN = 0), so positive output = descending. Gravity is helping there, so cap it to land softly
-    out = std::min(out, lift->getDescentLimit());
+    if(limit_descent) out = std::min(out, lift->getDescentLimit());
     lift->spin(out);
 }
 

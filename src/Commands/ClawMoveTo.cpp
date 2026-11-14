@@ -43,6 +43,12 @@ void ClawMoveTo::execute(){
         return;
     }
 
+    //closing(target below current angle): flat 9V instead of PID, so it grips hard the whole way
+    if(target_deg < angle){
+        claw->spin(-9000);
+        return;
+    }
+
     int out = (int)claw->getPID()->update(angle);
     //min speed only matters while still travelling, so it can't push the claw past the target once inside exit_range
     if(abs(out) < min_mV) out = (out < 0 ? -min_mV : min_mV);

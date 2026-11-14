@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
             key = self.keybinds.key(bind_id)
             action.setShortcut(QKeySequence(key))
             label = BY_ID[bind_id].label
-            action.setToolTip(f"{label} ({key})" if key else label)
+            action.setToolTip(f"{label} ({QKeySequence(key).toString(QKeySequence.NativeText)})" if key else label)
 
     def _edit_keybinds(self):
         self.overlay.pause()
@@ -180,7 +180,8 @@ class MainWindow(QMainWindow):
             self._update_hint()
 
     def _key(self, bind_id):
-        return self.keybinds.key(bind_id) or "unbound"
+        key = self.keybinds.key(bind_id)
+        return QKeySequence(key).toString(QKeySequence.NativeText) if key else "unbound"  #⌘ on a Mac, Ctrl elsewhere
 
     def _update_hint(self):
         if self.planner.placing is not None:

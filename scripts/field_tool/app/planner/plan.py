@@ -43,6 +43,7 @@ class Plan:
     extra_params: str = ""       #e.g. "Lift* lift, piston* claw" for custom code steps
     extra_includes: str = ""     #comma separated headers for the generated .h
     time_limit: float = 15.0     #15 = match auton, 60 = skills
+    helpers: str = ""            #hand-written top-level code in the .cpp (e.g. void wait(int ms){...}), kept as-is
     items: list = field(default_factory=list)  #Step | Group
 
     # ---- addressing: a path is (item index,) or (item index, step index inside a group)
@@ -81,7 +82,8 @@ class Plan:
         return {"version": 1, "name": self.name, "style": self.style,
                 "start": {"x": self.start_x, "y": self.start_y, "heading": self.start_heading},
                 "set_pose": self.set_pose, "wall_pose": self.wall_pose, "wall_max_error": self.wall_max_error, "extra_params": self.extra_params,
-                "extra_includes": self.extra_includes, "time_limit": self.time_limit, "items": items}
+                "extra_includes": self.extra_includes, "time_limit": self.time_limit, "helpers": self.helpers,
+                "items": items}
 
     @classmethod
     def from_dict(cls, d):
@@ -105,7 +107,7 @@ class Plan:
                    start_heading=start.get("heading", 0.0), set_pose=d.get("set_pose", True),
                    wall_pose=d.get("wall_pose", False), wall_max_error=d.get("wall_max_error", 0.0),
                    extra_params=d.get("extra_params", ""), extra_includes=d.get("extra_includes", ""),
-                   time_limit=d.get("time_limit", 15.0), items=items)
+                   time_limit=d.get("time_limit", 15.0), helpers=d.get("helpers", ""), items=items)
 
     def copy(self):
         return copy.deepcopy(self)

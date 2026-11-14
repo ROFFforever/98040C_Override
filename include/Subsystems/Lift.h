@@ -9,6 +9,7 @@
 //named lift positions(getAngle() units). Pass these to Lift::moveTo
 namespace LiftPos {
     constexpr double DOWN = 0;
+    constexpr double FIRST_CONE_LOW = -800;
     constexpr double FIRST_CONE_IN = -1200;
     constexpr double FIRST_CONE = -1350;
     constexpr double SECOND_CONE_IN = -2000;
@@ -49,7 +50,8 @@ class Lift : public Motors{
     void setHold(bool hold){ setBrakeMode(hold ? pros::E_MOTOR_BRAKE_HOLD : pros::E_MOTOR_BRAKE_COAST); }
 
     //builds a LiftMoveTo for this lift(see Commands/LiftMoveTo.h for the params). Caller schedules it or puts it in a Sequence
-    Command* moveTo(double target_deg, double exit_range=Units::AUTO, double max_time=Units::AUTO_TIME, int max_speed=127, int min_speed=0);
+    //limit_descent=false skips the descent cap below, so the lift drops at full speed
+    Command* moveTo(double target_deg, double exit_range=Units::AUTO, double max_time=Units::AUTO_TIME, int max_speed=127, int min_speed=0, bool limit_descent=true);
 
     //like moveTo, but offset_deg is added to the lift's position each time the move starts(negative = up). Same params as moveTo
     Command* moveBy(double offset_deg, double exit_range=Units::AUTO, double max_time=Units::AUTO_TIME, int max_speed=127, int min_speed=0);

@@ -13,8 +13,8 @@ void Lift::periodic(){
     }
 }
 
-Command* Lift::moveTo(double target_deg, double exit_range, double max_time, int max_speed, int min_speed){
-    return new LiftMoveTo(this, target_deg, exit_range, max_time, max_speed, min_speed);
+Command* Lift::moveTo(double target_deg, double exit_range, double max_time, int max_speed, int min_speed, bool limit_descent){
+    return new LiftMoveTo(this, target_deg, exit_range, max_time, max_speed, min_speed, false, limit_descent);
 }
 
 Command* Lift::moveBy(double offset_deg, double exit_range, double max_time, int max_speed, int min_speed){

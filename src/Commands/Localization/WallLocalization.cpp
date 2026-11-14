@@ -16,7 +16,7 @@ const char* sideToStr(WallSensor::Side side){
     return "UNKNOWN";
 }
 
-constexpr float kMaxCardinalDeviation = 20.0f; //was 90(check off): BACK readings at ~37 deg slant read ~1.6in short and got accepted (run_110-121)
+constexpr float kMaxCardinalDeviation = 30.0f; //was 90(check off): BACK readings at ~37 deg slant read ~1.6in short and got accepted (run_110-121)
 constexpr float kSensorLatencyS = 0.030f; //a distance reading is ~30ms old by the time we use it, so undo the motion since. Replay of run_110-121 with 20 deg: final 0.78 -> 0.70in
 constexpr float kCornerLimit = 60.0f;
 

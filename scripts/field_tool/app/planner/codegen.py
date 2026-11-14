@@ -164,6 +164,8 @@ def generate(plan):
                        + ["", f"{_signature(plan, fn)};", ""])
 
     body = [f'#include "GeneratedAutons/{fn}.h"'] + [f'#include "{h}"' for h in _used_includes(plan)]
+    if plan.helpers.strip():  #hand-written helper functions, kept between the includes and the auton
+        body += ["", plan.helpers.strip("\n")]
     body += ["", _signature(plan, fn) + "{"]
     if plan.set_pose:
         body.append(_set_pose(plan))

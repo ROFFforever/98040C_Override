@@ -4,7 +4,10 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 FIELD_IMAGE = ASSETS_DIR / "field.png"
 
 #run folders made by V5-robot-detection (sits next to 98040C_Override.git)
-RUNS_DIR = Path(__file__).resolve().parents[4] / "V5-robot-detection.git" / "runs"
+_ROBOTICS = Path(__file__).resolve().parents[4]
+#the school laptop's clone is named V5-robot-detection.git, this Mac's has no .git suffix
+RUNS_DIR = next((d for d in (_ROBOTICS / "V5-robot-detection" / "runs", _ROBOTICS / "V5-robot-detection.git" / "runs") if d.exists()),
+                _ROBOTICS / "V5-robot-detection" / "runs")
 
 #auton planner: plans (.json) live with the tool, exported code goes into the PROS project.
 #Not src/Autons/ - that's a COLD_DIR in the Makefile, and the cold build only picks up its top-level

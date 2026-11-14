@@ -35,6 +35,9 @@
 #include "GeneratedAutons/skills_pt_2.h"
 #include "GeneratedAutons/skills_pt_3.h"
 #include "GeneratedAutons/skills_optimized_test.h"
+#include "GeneratedAutons/easy_pickings_3.h"
+#include "GeneratedAutons/easy_pickings_3_right.h"
+#include "GeneratedAutons/skills_test.h"
 #include <format>
 #include "Subsystems/piston.h"
 #include "Commands/Tuning/AngularCharacterize.h"
@@ -85,7 +88,7 @@ Lift lift({{&lift_1, false}}, &lift_pid);
 
 pros::Motor claw_oc(7);
 pros::Motor claw_suction(4);
-PID claw_pid(300, 0, 0, 0, 0);               // TODO TUNE
+PID claw_pid(25, 0, 0, 0, 0);               // TODO TUNE
 Claw claw({{&claw_oc, false}}, {{&claw_suction, true}}, &claw_pid);
 
 
@@ -126,23 +129,25 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 //the claw and lift macros fire each other, so liftTeleop is declared here and defined below
 extern LiftTeleopCommand liftTeleop;
 Command* lift_to_430 = lift.moveTo(-430); //fired by claw button L1
+Command* lift_drop_fast = lift.moveTo(LiftPos::DOWN, Units::AUTO, Units::AUTO_TIME, 55, 0, false); //fired by claw button R1. false = no 3.5V descent cap. 35 = ~3.3V down(127/12V was too fast)
 //claw macros: one button per position
 ClawTeleopCommand clawTeleop(&claw, &controller, {
 	{pros::E_CONTROLLER_DIGITAL_L1, claw.moveTo(ClawPos::CLOSED), true, []{ liftTeleop.trigger(lift_to_430); }, 300}, //true = stays braked once closed so the cone stays in place. Lift starts 300ms after the press
-	{pros::E_CONTROLLER_DIGITAL_L2, claw.moveTo(ClawPos::OPEN)},
+	{pros::E_CONTROLLER_DIGITAL_L2, claw.moveTo(-36)}, //-36 = slightly short of fully open(0)
+	{pros::E_CONTROLLER_DIGITAL_R1, new Sequence({new WaitCommand(370), claw.moveTo(-36)}), false, []{ liftTeleop.trigger(lift_drop_fast, false); }}, //score: lift starts dropping all the way down on the press, claw opens 100ms later. Lift coasts at the bottom like A
 }, 50); //suction spins at 50% while closed(L1), stops on open(L2)
 //used by lift button B once its move finishes: opens the claw 30 degrees past wherever it currently is(positive = opens)
 Command* claw_open_small = claw.moveBy(30);
 //lift macros: one button per position
 LiftTeleopCommand liftTeleop(&lift, &controller, {
 	{pros::E_CONTROLLER_DIGITAL_A, lift.moveTo(LiftPos::DOWN), false}, //false = coasts at the bottom instead of holding
-	{pros::E_CONTROLLER_DIGITAL_B, lift.moveBy(500), true, []{ clawTeleop.trigger(claw_open_small, true); }}, //500 down from wherever the lift is(positive = down), then once that finishes opens the claw 30 more and holds it there
-	{pros::E_CONTROLLER_DIGITAL_X, lift.moveTo(-530)},
+	//X is the one-shot start routine in opcontrol(run_start_routine), it used to be lift.moveTo(-530)
+	{pros::E_CONTROLLER_DIGITAL_B, lift.moveTo(LiftPos::FIRST_CONE_LOW)},
 	{pros::E_CONTROLLER_DIGITAL_Y, lift.moveTo(LiftPos::FIRST_CONE)},
-	{pros::E_CONTROLLER_DIGITAL_DOWN, lift.moveTo(LiftPos::SECOND_CONE)},
-	{pros::E_CONTROLLER_DIGITAL_LEFT, lift.moveTo(LiftPos::THIRD_CONE)},
-	{pros::E_CONTROLLER_DIGITAL_UP, lift.moveTo(LiftPos::FOURTH_CONE)},
-	{pros::E_CONTROLLER_DIGITAL_RIGHT, lift.moveTo(LiftPos::FIFTH_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_RIGHT, lift.moveTo(LiftPos::SECOND_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_DOWN, lift.moveTo(LiftPos::THIRD_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_LEFT, lift.moveTo(LiftPos::FOURTH_CONE)},
+	{pros::E_CONTROLLER_DIGITAL_UP, lift.moveTo(LiftPos::FIFTH_CONE)},
 });
 #endif
 #ifdef ROBOT_MAIN
@@ -154,7 +159,7 @@ LiftTeleopCommand liftTeleop(&lift, &controller, {
 //tracking point (tag profile fixed 10/16). Measured from the odom point it's 7.7-7.8
 //sensor's measuring point sits 5/8in further toward robot center than CAD says, so every vertOffset moves 5/8in inward
 constexpr float kWallZeroInset = 0.625f;
-WallSensor back_wall_sensor(17, -5.627f, -0.131f - kWallZeroInset,  WallSensor::Side::BACK); //5.627 right, 0.131 forward of center
+WallSensor back_wall_sensor(15, -5.627f, -0.131f - kWallZeroInset,  WallSensor::Side::BACK); //5.627 right, 0.131 forward of center
 
 //vertOffset=0.75  horizOffset=7.26
 //vertOffset was 6.875; 5.85 from the camera fit on the 10/16 runs (read ~1in long)
@@ -165,7 +170,7 @@ WallSensor front_wall_sensor(14, -6.256f, 0.39f,  WallSensor::Side::FRONT); //6.
 
 
 //vertOffset was 6.50; 5.80 from the camera fit on the 10/16 runs (read ~0.7in long)
-WallSensor right_wall_sensor(18, -2.512f, 4.182f,  WallSensor::Side::RIGHT); //4.916 right, 2.184 forward of center (CAD)
+WallSensor right_wall_sensor(16, -2.512f, 4.182f,  WallSensor::Side::RIGHT); //4.916 right, 2.184 forward of center (CAD)
 
 
 drivetrain chassis(&leftMotors, &rightMotors, &imu, Units::WHEEL_325, 720, &vert, &horiz, &angular_pid, &ff_lateral, &ff_angular, &residual_lateral_PID); // 450 = wheel's actual output rpm after gearing //720 measured: motor distance matched the vert pod on a push test + kAV trial 1 (60:36 on 200rpm math gives 333 but reads ~2.1x short)
@@ -349,8 +354,8 @@ void autonomous() {
 	TELEMETRY.send(Telemetry::Channel::Debug, std::format(
 		"{{\"t\": {}, \"event\": \"auton_start\"}}\n", pros::millis()));
 
-	//AUTON SELECT: 0 = none (falls through to the test code below), 1 = RedHard, 2 = BlueHard, 3 = skills, 4 = skills_pt_3 (test), 5 = skills_optimized_test (speed experiment)
-	constexpr int AUTON_SELECT = 3;
+	//AUTON SELECT: 0 = none (falls through to the test code below), 1 = RedHard, 2 = BlueHard, 3 = skills, 4 = skills_pt_3 (test), 5 = skills_optimized_test (speed experiment), 6 = easy_pickings_3 (match: skills part 1, no matchloader), 7 = easy_pickings_3_right (easy_pickings_3 mirrored across y = x, starts on the -Y wall), 8 = skills_test (easy_pickings_3 + matchloader cycles + skills_pt_3)
+	constexpr int AUTON_SELECT = 8;
 	if(AUTON_SELECT == 3){
 #ifdef HAS_LIFT
 		skills(&chassis, &wallLocalization, &claw, &lift); //full skills (part 1 + matchloader cycles), seeds its own start pose
@@ -368,6 +373,27 @@ void autonomous() {
 	if(AUTON_SELECT == 5){
 #ifdef HAS_LIFT
 		skills_optimized_test(&chassis, &wallLocalization, &claw, &lift); //speed-first copy of skills, same start pose
+#endif
+		printf("END\n");
+		return;
+	}
+	if(AUTON_SELECT == 6){
+#ifdef HAS_LIFT
+		easy_pickings_3(&chassis, &wallLocalization, &claw, &lift); //preload + two pins, then stops
+#endif
+		printf("END\n");
+		return;
+	}
+	if(AUTON_SELECT == 7){
+#ifdef HAS_LIFT
+		easy_pickings_3_right(&chassis, &wallLocalization, &claw, &lift); //easy_pickings_3 mirrored to the -Y wall side
+#endif
+		printf("END\n");
+		return;
+	}
+	if(AUTON_SELECT == 8){
+#ifdef HAS_LIFT
+		skills_test(&chassis, &wallLocalization, &claw, &lift); //easy_pickings_3 part 1 + matchloader cycles + skills_pt_3
 #endif
 		printf("END\n");
 		return;
@@ -416,6 +442,40 @@ void autonomous() {
 
  //MAX SPEED TURNING IS 10.6-7 RAD/SEC!
  //MAX LATERAL IS 90in/sec
+#ifdef HAS_LIFT
+//same opening as easy_pickings_3/skills: grab the preload, flip the toggle twice (back, forward, back), lift to just off the ground.
+//blocks for ~1.8s. Teleop defaults are paused so the drive/claw/lift teleop commands don't fight it
+void run_start_routine(){
+	CommandScheduler::setDefaultsEnabled(false);
+	CommandScheduler::cancelAll();
+	leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_BRAKE); //the set(0) steps rely on braking, teleop runs coast
+	rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_BRAKE);
+	claw.setHold(true);
+	lift.setHold(true);
+	claw.moveTo(ClawPos::CLOSED)->schedule();
+	claw.spinSuction(6000); // same 50% suction as L1
+	pros::delay(300);
+	Command* lift_normal = lift.moveTo(-330); // just off the ground
+	chassis.set(-5000);
+	pros::delay(300);
+	chassis.set(0);
+	pros::delay(200); //let it brake
+	chassis.set(4500);
+	pros::delay(300);
+	chassis.set(0);
+	pros::delay(100); //let it brake
+	chassis.set(-5000);
+	pros::delay(300);
+	chassis.set(0);
+	lift_normal->schedule();
+	claw.stopSuction(); // suction off, or the flex wheels keep pulling the cone in and drag the claw shut
+	while(lift_normal->scheduled()) pros::delay(10); // let the lift get there before teleop takes it back
+	leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+	rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+	CommandScheduler::setDefaultsEnabled(true); //hand the subsystems back to the teleop commands
+}
+#endif
+
 void opcontrol() {
 	// Driver control coasts to a stop instead of braking - initialize() sets
 	// BRAKE for autonomous accuracy, but that same setting was carrying over
@@ -519,6 +579,14 @@ void opcontrol() {
 
 		counter=0;
 		}
+#ifdef HAS_LIFT
+		//X = start routine, only works once per program (restart the program to use it again)
+		static bool start_routine_used = false;
+		if(!start_routine_used && controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X)){
+			start_routine_used = true;
+			run_start_routine();
+		}
+#endif
 		// if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X) && !angularTune.scheduled()){
 		// 	angularTune.schedule();
 		// }
